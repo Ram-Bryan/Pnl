@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
 import { TradeWithInstrument, StatsResult, computeStats } from '../stats/computeStats';
@@ -26,8 +27,8 @@ export function useDashboard(): DashboardData {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetch = async () => {
-    setLoading(true);
+  const fetch = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const trades = await db.getAllAsync<TradeWithInstrument>(`
@@ -66,9 +67,11 @@ export function useDashboard(): DashboardData {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db]);
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetch(); }, [fetch]);
+
+  useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   return { stats, recentTrades, weeklyGoal, loading, error, refetch: fetch };
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { TradeWithInstrument } from '../stats/computeStats';
 import { TradeFill, Tag, Emotion } from '../db/schema';
@@ -26,8 +27,8 @@ export function useTradeDetail(id: number) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetch = useCallback(async () => {
-    setLoading(true);
+  const fetch = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const [tradeData, tagRows, ruleRows, screenshotPaths, emotionRows] = await Promise.all([
@@ -59,6 +60,8 @@ export function useTradeDetail(id: number) {
   }, [db, id]);
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   return { data, error, loading, refetch: fetch };
 }
