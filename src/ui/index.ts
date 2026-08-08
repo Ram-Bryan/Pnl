@@ -8,3 +8,4 @@ export { SectionHeader } from './SectionHeader';
 export { EmptyState } from './EmptyState';
 export { Fab } from './Fab';
 export { Sheet } from './Sheet';
+export { TradeRow } from './TradeRow';
