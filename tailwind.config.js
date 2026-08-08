@@ -5,24 +5,24 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Messenger Calm palette (ui-ux-pro-max design system)
-        primary: "#2563EB", // messenger blue — primary actions, user bubbles, active states
-        "primary-dark": "#1D4ED8",
-        "primary-soft": "#DBEAFE",
-        accent: "#059669", // online green — success, enabled, online states
-        "accent-dark": "#047857",
-        "accent-soft": "#D1FAE5",
-        background: "#FFFFFF",
-        surface: "#F8FAFC",
-        border: "#E4ECFC",
+        // PnL Trading Journal palette
+        primary: "#10B981", // emerald 500 — primary actions, profitiable states
+        "primary-dark": "#059669",
+        "primary-soft": "#D1FAE5",
+        accent: "#F59E0B", // warning/neutral
+        "accent-dark": "#D97706",
+        "accent-soft": "#FEF3C7",
+        background: "#F8FAFC",
+        surface: "#FFFFFF",
+        border: "#E2E8F0",
         "text-primary": "#0F172A",
         "text-secondary": "#64748B",
-        success: "#059669",
+        success: "#10B981",
         warning: "#F59E0B",
-        error: "#DC2626",
+        error: "#EF4444",
+        loss: "#EF4444",
+        profit: "#10B981",
         disabled: "#CBD5E1",
-        "chat-user": "#2563EB",
-        "chat-ai": "#F1F5FD"
       },
       fontFamily: {
         heading: ["Poppins_600SemiBold"],

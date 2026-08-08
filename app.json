@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Pew",
-    "slug": "Pew",
+    "name": "Pnl",
+    "slug": "pnl",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "pew",
+    "scheme": "pnl",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "plugins": [
@@ -19,8 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false
     },
