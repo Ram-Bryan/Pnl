@@ -1,3 +1,5 @@
+import { AssetClass, TradeStyle } from '../db/schema';
+
 // Pure stats engine — no SQLite dependency.
 // P&L is ALWAYS computed here, never stored in the DB.
 
@@ -7,6 +9,9 @@ export type TradeWithInstrument = {
   instrument_id: number;
   strategy_id: number | null;
   emotion_id: number | null;
+  trade_style: TradeStyle | null;
+  entry_condition: string | null;
+  exit_condition: string | null;
   direction: 'long' | 'short';
   status: 'open' | 'closed';
   entry_price: number;
@@ -27,6 +32,9 @@ export type TradeWithInstrument = {
   instrument_name: string | null;
   price_mode: 'standard' | 'cents';
   contract_size: number;
+  asset_class: AssetClass;
+  strategy_name: string | null;
+  emotion_name: string | null;
 };
 
 export type StatsResult = {

@@ -1,6 +1,45 @@
 import { SQLiteDatabase } from 'expo-sqlite';
-import { Trade } from './schema';
+import {
+  Trade,
+  AssetClass,
+  PriceMode,
+  TradeStyle,
+  TradeDirection,
+  TradeStatus,
+  TradeFill,
+  Emotion,
+  Tag,
+  Strategy,
+  StrategyRule,
+} from './schema';
 import { TradeWithInstrument } from '../stats/computeStats';
+
+export type TradeDraft = {
+  account_id: number;
+  instrument_id: number;
+  strategy_id: number | null;
+  emotion_id: number | null;
+  direction: TradeDirection;
+  status: TradeStatus;
+  entry_price: number;
+  exit_price: number | null;
+  size: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  entry_at: string;
+  exit_at: string | null;
+  fees: number;
+  followed_rules: 0 | 1 | null;
+  notes: string | null;
+  reflection: string | null;
+  trade_style: TradeStyle | null;
+  entry_condition: string | null;
+  exit_condition: string | null;
+};
+
+export type InsertTradeInput = TradeDraft & {
+  fills: { side: 'entry' | 'exit'; price: number; quantity: number; note: string | null; occurred_at: string }[];
+};
 
 // ============================================================
 // Database initialization — called by SQLiteProvider onInit.
@@ -280,9 +319,14 @@ export async function getTradeById(
            i.symbol,
            i.name   AS instrument_name,
            i.price_mode,
-           i.contract_size
+           i.contract_size,
+           i.asset_class,
+           s.name   AS strategy_name,
+           e.name   AS emotion_name
     FROM   trades t
     JOIN   instruments i ON i.id = t.instrument_id
+    LEFT JOIN strategies s ON s.id = t.strategy_id
+    LEFT JOIN emotions e  ON e.id = t.emotion_id
     WHERE  t.id = ?
   `, [id]);
 }
@@ -294,15 +338,19 @@ export async function insertTrade(
   const result = await db.runAsync(
     `INSERT INTO trades
       (account_id, instrument_id, strategy_id, emotion_id,
+       trade_style, entry_condition, exit_condition,
        direction, status, entry_price, exit_price, size,
        stop_loss, take_profit, entry_at, exit_at,
        fees, followed_rules, notes, reflection)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       trade.account_id,
       trade.instrument_id,
       trade.strategy_id ?? null,
       trade.emotion_id ?? null,
+      trade.trade_style ?? null,
+      trade.entry_condition ?? null,
+      trade.exit_condition ?? null,
       trade.direction,
       trade.status,
       trade.entry_price,
@@ -340,30 +388,143 @@ export async function deleteTrade(db: SQLiteDatabase, id: number): Promise<void>
   await db.runAsync('DELETE FROM trades WHERE id = ?', [id]);
 }
 
+type FillRow = { side: 'entry' | 'exit'; price: number; quantity: number; note: string | null; occurred_at: string };
+
+export async function getTradeWithFills(
+  db: SQLiteDatabase,
+  id: number
+): Promise<{ trade: TradeWithInstrument; fills: TradeFill[] } | null> {
+  const trade = await getTradeById(db, id);
+  if (!trade) return null;
+  const fills = await db.getAllAsync<TradeFill>(
+    `SELECT * FROM trade_fills WHERE trade_id = ? ORDER BY side, sort_order`, [id]
+  );
+  return { trade, fills };
+}
+
+export async function insertTradeWithFills(
+  db: SQLiteDatabase,
+  trade: TradeDraft,
+  fills: FillRow[]
+): Promise<number> {
+  const id = await insertTrade(db, trade);
+  await replaceFills(db, id, fills);
+  return id;
+}
+
+async function replaceFills(db: SQLiteDatabase, tradeId: number, fills: FillRow[]): Promise<void> {
+  await db.runAsync('DELETE FROM trade_fills WHERE trade_id = ?', [tradeId]);
+  for (let i = 0; i < fills.length; i++) {
+    const f = fills[i];
+    await db.runAsync(
+      `INSERT INTO trade_fills (trade_id, side, price, quantity, note, occurred_at, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [tradeId, f.side, f.price, f.quantity, f.note, f.occurred_at, i]
+    );
+  }
+}
+
+export async function updateTradeWithFills(
+  db: SQLiteDatabase,
+  id: number,
+  trade: TradeDraft,
+  fills: FillRow[]
+): Promise<void> {
+  await updateTrade(db, id, trade);
+  await replaceFills(db, id, fills);
+}
+
+export async function getEmotions(db: SQLiteDatabase): Promise<Emotion[]> {
+  return db.getAllAsync<Emotion>('SELECT * FROM emotions ORDER BY id');
+}
+
+export async function getTags(db: SQLiteDatabase): Promise<Tag[]> {
+  return db.getAllAsync<Tag>('SELECT * FROM tags ORDER BY id');
+}
+
+export async function getStrategies(db: SQLiteDatabase): Promise<Strategy[]> {
+  return db.getAllAsync<Strategy>(
+    `SELECT * FROM strategies WHERE archived_at IS NULL ORDER BY id`
+  );
+}
+
+export async function getStrategyRules(db: SQLiteDatabase, strategyId: number): Promise<StrategyRule[]> {
+  return db.getAllAsync<StrategyRule>(
+    `SELECT * FROM strategy_rules WHERE strategy_id = ? AND archived_at IS NULL ORDER BY sort_order`,
+    [strategyId]
+  );
+}
+
+export async function saveTradeAssociations(
+  db: SQLiteDatabase,
+  tradeId: number,
+  associations: {
+    strategyId: number | null;
+    emotionId: number | null;
+    tagIds: number[];
+    ruleChecks: { ruleId: number; checked: 0 | 1 }[];
+  }
+): Promise<void> {
+  await db.execAsync('BEGIN TRANSACTION;');
+  try {
+    await db.runAsync('DELETE FROM trade_tags WHERE trade_id = ?', [tradeId]);
+    await db.runAsync('DELETE FROM trade_rule_checks WHERE trade_id = ?', [tradeId]);
+    for (const tagId of associations.tagIds) {
+      await db.runAsync(
+        `INSERT OR IGNORE INTO trade_tags (trade_id, tag_id) VALUES (?, ?)`,
+        [tradeId, tagId]
+      );
+    }
+    for (const rc of associations.ruleChecks) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO trade_rule_checks (trade_id, strategy_rule_id, checked) VALUES (?, ?, ?)`,
+        [tradeId, rc.ruleId, rc.checked]
+      );
+    }
+    await db.execAsync('COMMIT;');
+  } catch (e) {
+    await db.execAsync('ROLLBACK;');
+    throw e;
+  }
+}
+
+export async function saveTradeScreenshots(
+  db: SQLiteDatabase,
+  tradeId: number,
+  filePaths: string[]
+): Promise<void> {
+  for (let i = 0; i < filePaths.length; i++) {
+    await db.runAsync(
+      `INSERT INTO trade_screenshots (trade_id, file_path, sort_order) VALUES (?, ?, ?)`,
+      [tradeId, filePaths[i], i]
+    );
+  }
+}
+
 // ============================================================
 // Instrument helpers
 // ============================================================
 
 /**
- * Look up an instrument by symbol (case-insensitive) with asset_class='stock'.
+ * Look up an instrument by symbol (case-insensitive) and asset class.
  * Creates one if it doesn't exist. Returns the instrument id.
  */
 export async function getOrCreateInstrument(
   db: SQLiteDatabase,
-  rawSymbol: string
+  rawSymbol: string,
+  assetClass: AssetClass,
+  priceMode: PriceMode
 ): Promise<number> {
   const symbol = rawSymbol.toUpperCase().trim();
-
   const existing = await db.getFirstAsync<{ id: number }>(
-    `SELECT id FROM instruments WHERE symbol = ? AND asset_class = 'stock' LIMIT 1`,
-    [symbol]
+    `SELECT id FROM instruments WHERE symbol = ? AND asset_class = ? LIMIT 1`,
+    [symbol, assetClass]
   );
   if (existing) return existing.id;
-
   const result = await db.runAsync(
     `INSERT INTO instruments (symbol, asset_class, price_mode, contract_size)
-     VALUES (?, 'stock', 'standard', 1)`,
-    [symbol]
+     VALUES (?, ?, ?, 1)`,
+    [symbol, assetClass, priceMode]
   );
   return result.lastInsertRowId;
 }
