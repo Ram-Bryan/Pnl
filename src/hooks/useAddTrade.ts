@@ -237,6 +237,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
       return;
     }
     const rules = await getStrategyRules(db, id);
+    if (strategyIdRef.current !== id) return;
     setStrategyRules(rules);
     setRuleChecks({});
   }, [db]);
@@ -262,14 +263,18 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
   const addScreenshots = useCallback(async () => {
     const remaining = SCREENSHOT_LIMIT - fields.screenshots.length;
     if (remaining <= 0) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-    });
-    if (result.canceled) return;
-    const uris = result.assets.slice(0, remaining).map((a) => a.uri);
-    const persisted = await persistScreenshots(uris);
-    setFields((f) => ({ ...f, screenshots: [...f.screenshots, ...persisted] }));
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+      });
+      if (result.canceled) return;
+      const uris = result.assets.slice(0, remaining).map((a) => a.uri);
+      const persisted = await persistScreenshots(uris);
+      setFields((f) => ({ ...f, screenshots: [...f.screenshots, ...persisted] }));
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add screenshots.');
+    }
   }, [fields.screenshots.length]);
 
   const removeScreenshot = useCallback((index: number) => {
@@ -346,7 +351,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
 
       const ruleChecksForSave = Object.entries(ruleChecks).map(([ruleId, checked]) => ({
         ruleId: parseInt(ruleId, 10),
-        checked: checked ? 1 : 0,
+        checked: checked ? (1 as const) : (0 as const),
       }));
 
       await saveTradeAssociations(db, tradeIdForSave, {
