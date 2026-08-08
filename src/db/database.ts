@@ -37,7 +37,7 @@ export type TradeDraft = {
   exit_condition: string | null;
 };
 
-export type RuleCheck = { ruleId: number; checked: 0 | 1 };
+export type RuleCheck = { ruleId: number; rule_text: string; checked: 0 | 1 };
 
 // ============================================================
 // Database initialization — called by SQLiteProvider onInit.
@@ -462,7 +462,10 @@ export async function getTradeTags(db: SQLiteDatabase, tradeId: number): Promise
 
 export async function getTradeRuleChecks(db: SQLiteDatabase, tradeId: number): Promise<RuleCheck[]> {
   return db.getAllAsync<RuleCheck>(
-    `SELECT strategy_rule_id AS ruleId, checked FROM trade_rule_checks WHERE trade_id = ?`,
+    `SELECT c.strategy_rule_id AS ruleId, r.rule_text, c.checked
+     FROM trade_rule_checks c
+     JOIN strategy_rules r ON r.id = c.strategy_rule_id
+     WHERE c.trade_id = ? ORDER BY r.sort_order`,
     [tradeId]
   );
 }

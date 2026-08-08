@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, ScrollView, ActivityIndicator, Alert, FlatList, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getTradeById, deleteTrade } from '../../src/db/database';
-import { TradeWithInstrument, computeTradePnl } from '../../src/stats/computeStats';
+import { Button, Card, Chip, PnlText, SectionHeader, EmptyState } from '../../src/ui';
+import { ASSET_CLASSES, TRADE_STYLES } from '../../src/lib/constants';
+import { formatPrice } from '../../src/lib/format';
+import { averageFillPrice, totalQuantity } from '../../src/lib/aggregateFills';
+import { computeTradePnl } from '../../src/stats/computeStats';
+import { deleteTrade } from '../../src/db/database';
+import { useTradeDetail } from '../../src/hooks/useTradeDetail';
 
-function formatPnl(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}$${Math.abs(value).toFixed(2)}`;
-}
-
-function DetailRow({ label, value, valueClass = 'text-slate-800' }: { label: string; value: string; valueClass?: string }) {
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <View className="flex-row justify-between items-center py-3 border-b border-slate-100">
       <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold">{label}</Text>
-      <Text className={`font-semibold text-sm ${valueClass}`}>{value}</Text>
+      <Text className="font-semibold text-sm text-slate-800">{value}</Text>
     </View>
   );
 }
@@ -28,39 +28,8 @@ export default function TradeDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const db = useSQLiteContext();
-
-  const [trade, setTrade] = useState<TradeWithInstrument | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!id) return;
-    db.getFirstAsync<TradeWithInstrument>(`
-      SELECT t.*,
-             i.symbol,
-             i.name   AS instrument_name,
-             i.price_mode,
-             i.contract_size
-      FROM   trades t
-      JOIN   instruments i ON i.id = t.instrument_id
-      WHERE  t.id = ?
-    `, [parseInt(id, 10)])
-      .then((row) => setTrade(row ?? null))
-      .catch((e) => Alert.alert('Error', e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  function handleDelete() {
-    Alert.alert('Delete Trade', 'Are you sure? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          await deleteTrade(db, parseInt(id!, 10));
-          router.back();
-        },
-      },
-    ]);
-  }
+  const parsedId = parseInt(id, 10);
+  const { data, loading } = useTradeDetail(Number.isNaN(parsedId) ? 0 : parsedId);
 
   if (loading) {
     return (
@@ -70,77 +39,186 @@ export default function TradeDetail() {
     );
   }
 
-  if (!trade) {
+  if (!data) {
     return (
       <View className="flex-1 items-center justify-center bg-slate-50">
-        <Ionicons name="alert-circle-outline" size={48} color="#f43f5e" />
-        <Text className="text-slate-600 font-medium mt-3">Trade not found.</Text>
+        <EmptyState icon="alert-circle-outline" title="Trade not found." />
       </View>
     );
   }
 
-  const pnl = computeTradePnl(trade);
-  const pnlColor = pnl >= 0 ? 'text-emerald-600' : 'text-rose-500';
+  const { trade, fills, tags, ruleChecks, screenshots, emotion } = data;
+  const entryFills = fills.filter((f) => f.side === 'entry');
+  const exitFills = fills.filter((f) => f.side === 'exit');
+  const isOpen = trade.status === 'open';
+  const assetClass = ASSET_CLASSES.find((c) => c.key === trade.asset_class);
+  const styleLabel = TRADE_STYLES.find((s) => s.key === trade.trade_style)?.label;
+
+  function handleDelete() {
+    Alert.alert('Delete Trade', 'Are you sure? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTrade(db, trade.id);
+          router.back();
+        },
+      },
+    ]);
+  }
 
   return (
-    <View className="flex-1 bg-slate-50" style={{ paddingBottom: insets.bottom }}>
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
+    <View className="flex-1 bg-slate-50">
+      <Stack.Screen options={{ title: trade.symbol }} />
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
 
-        {/* ── Hero ── */}
-        <View className="bg-white rounded-3xl p-6 mb-6 shadow-sm border border-slate-100 items-center">
-          <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">{trade.symbol}</Text>
-          <Text className={`text-4xl font-black mb-2 ${pnlColor}`}>
-            {trade.status === 'open' ? 'Open' : formatPnl(pnl)}
-          </Text>
-          <View className="flex-row gap-x-3">
+        <Card className="p-6 items-center mb-4">
+          <View className="w-14 h-14 rounded-2xl bg-emerald-50 items-center justify-center mb-3">
+            <Ionicons name={assetClass?.icon ?? 'help-circle'} size={26} color="#059669" />
+          </View>
+          <Text className="text-2xl font-black text-slate-900 mb-2">{trade.symbol}</Text>
+          <View className="flex-row gap-2 mb-4">
+            <Chip label={assetClass?.label ?? trade.asset_class} selected onPress={() => {}} />
+            {styleLabel ? <Chip label={styleLabel} selected onPress={() => {}} /> : null}
+          </View>
+          {isOpen ? (
+            <Text className="text-4xl font-black text-amber-500 mb-4">Open</Text>
+          ) : (
+            <PnlText value={computeTradePnl(trade)} size="text-4xl" />
+          )}
+          <View className="flex-row gap-2">
             <View className={`px-3 py-1 rounded-full ${trade.direction === 'long' ? 'bg-emerald-50' : 'bg-rose-50'}`}>
               <Text className={`text-xs font-bold capitalize ${trade.direction === 'long' ? 'text-emerald-700' : 'text-rose-600'}`}>
                 {trade.direction}
               </Text>
             </View>
-            <View className="px-3 py-1 rounded-full bg-slate-100">
-              <Text className="text-xs font-bold capitalize text-slate-600">{trade.status}</Text>
+            <View className={`px-3 py-1 rounded-full ${isOpen ? 'bg-amber-50' : 'bg-slate-100'}`}>
+              <Text className={`text-xs font-bold capitalize ${isOpen ? 'text-amber-600' : 'text-slate-500'}`}>
+                {trade.status}
+              </Text>
             </View>
           </View>
-        </View>
+        </Card>
 
-        {/* ── Detail Rows ── */}
-        <View className="bg-white rounded-2xl px-5 shadow-sm border border-slate-100 mb-6">
-          <DetailRow label="Entry Price" value={`$${trade.entry_price.toFixed(4)}`} />
-          {trade.exit_price != null && (
-            <DetailRow label="Exit Price" value={`$${trade.exit_price.toFixed(4)}`} valueClass={pnlColor} />
+        <Card className="p-5 mb-4">
+          <SectionHeader title="Entry" />
+          {entryFills.map((f) => (
+            <View key={f.id} className="py-2 border-b border-slate-100">
+              <Text className="text-slate-800 font-semibold text-sm">
+                {formatPrice(f.price)} · {f.quantity}
+              </Text>
+              {f.note ? <Text className="text-slate-500 text-xs mt-0.5">{f.note}</Text> : null}
+            </View>
+          ))}
+          <Text className="text-slate-500 text-sm font-semibold py-2" style={{ fontVariant: ['tabular-nums'] }}>
+            Avg {formatPrice(averageFillPrice(entryFills))} · {totalQuantity(entryFills)} units
+          </Text>
+          {exitFills.length > 0 && (
+            <>
+              <View className="mt-4" />
+              <SectionHeader title="Exit" />
+              {exitFills.map((f) => (
+                <View key={f.id} className="py-2 border-b border-slate-100">
+                  <Text className="text-slate-800 font-semibold text-sm">
+                    {formatPrice(f.price)} · {f.quantity}
+                  </Text>
+                  {f.note ? <Text className="text-slate-500 text-xs mt-0.5">{f.note}</Text> : null}
+                </View>
+              ))}
+              <Text className="text-slate-500 text-sm font-semibold py-2" style={{ fontVariant: ['tabular-nums'] }}>
+                Avg {formatPrice(averageFillPrice(exitFills))} · {totalQuantity(exitFills)} units
+              </Text>
+            </>
           )}
-          <DetailRow label="Size" value={String(trade.size)} />
-          <DetailRow label="Fees" value={`$${trade.fees.toFixed(2)}`} />
-          {trade.stop_loss != null && (
-            <DetailRow label="Stop Loss" value={`$${trade.stop_loss.toFixed(4)}`} />
-          )}
+        </Card>
+
+        <Card className="p-5 mb-4">
+          <SectionHeader title="Plan" />
+          <DetailRow label="Stop Loss" value={trade.stop_loss != null ? formatPrice(trade.stop_loss) : '—'} />
           {trade.take_profit != null && (
-            <DetailRow label="Take Profit" value={`$${trade.take_profit.toFixed(4)}`} />
+            <DetailRow label="Take Profit" value={formatPrice(trade.take_profit)} />
+          )}
+          <DetailRow label="Entry Condition" value={trade.entry_condition ?? '—'} />
+          {trade.exit_condition != null && (
+            <DetailRow label="Exit Condition" value={trade.exit_condition} />
           )}
           <DetailRow label="Entry Date" value={trade.entry_at.slice(0, 16).replace('T', ' ')} />
-          {trade.exit_at && (
+          {trade.exit_at != null && (
             <DetailRow label="Exit Date" value={trade.exit_at.slice(0, 16).replace('T', ' ')} />
           )}
-        </View>
+        </Card>
 
-        {/* ── Notes ── */}
+        {trade.strategy_id != null && (
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Strategy" />
+            <Text className="font-bold text-slate-800 mb-2">{trade.strategy_name}</Text>
+            {ruleChecks.map((rc) => (
+              <View key={rc.ruleId} className="flex-row items-center py-2">
+                <Ionicons
+                  name={rc.checked ? 'checkmark-circle' : 'close-circle'}
+                  size={20}
+                  color={rc.checked ? '#059669' : '#94a3b8'}
+                />
+                <Text className="text-slate-700 text-sm font-medium ml-2 flex-1">{rc.rule_text}</Text>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {trade.emotion_id != null && (
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Emotion" />
+            <View className="flex-row items-center">
+              <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: emotion?.color ?? '#cbd5e1' }} />
+              <Text className="text-slate-800 font-semibold">{trade.emotion_name}</Text>
+            </View>
+          </Card>
+        )}
+
+        {tags.length > 0 && (
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Mistakes" />
+            <View className="flex-row flex-wrap gap-2">
+              {tags.map((t) => (
+                <Chip key={t.id} label={t.name} selected onPress={() => {}} />
+              ))}
+            </View>
+          </Card>
+        )}
+
         {trade.notes ? (
-          <View className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-6">
-            <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Notes</Text>
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Entry notes" />
             <Text className="text-slate-700 font-medium leading-5">{trade.notes}</Text>
-          </View>
+          </Card>
         ) : null}
 
-        {/* ── Actions ── */}
-        <TouchableOpacity
-          className="flex-row items-center justify-center bg-rose-50 border border-rose-200 py-4 rounded-2xl"
-          activeOpacity={0.7}
-          onPress={handleDelete}
-        >
-          <Ionicons name="trash-outline" size={20} color="#f43f5e" />
-          <Text className="text-rose-500 font-bold ml-2">Delete Trade</Text>
-        </TouchableOpacity>
+        {trade.reflection ? (
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Exit notes" />
+            <Text className="text-slate-700 font-medium leading-5">{trade.reflection}</Text>
+          </Card>
+        ) : null}
+
+        {screenshots.length > 0 && (
+          <Card className="p-5 mb-4">
+            <SectionHeader title="Screenshots" />
+            <FlatList
+              horizontal
+              data={screenshots}
+              keyExtractor={(uri) => uri}
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <Image source={{ uri: item }} className="w-40 h-28 rounded-xl bg-slate-100 mr-2" />
+              )}
+            />
+          </Card>
+        )}
+
+        <Button title="Edit" onPress={() => router.push(`/add-trade?id=${trade.id}`)} />
+        <View className="h-3" />
+        <Button title="Delete" variant="danger" onPress={handleDelete} />
 
       </ScrollView>
     </View>
