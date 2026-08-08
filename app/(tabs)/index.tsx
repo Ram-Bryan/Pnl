@@ -1,68 +1,38 @@
-import React from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  ActivityIndicator, FlatList,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Card, EmptyState, Fab, PnlText, SectionHeader, Segmented, TradeRow } from '../../src/ui';
 import { useDashboard } from '../../src/hooks/useDashboard';
-import { TradeWithInstrument, computeTradePnl } from '../../src/stats/computeStats';
+import { formatMoney, formatPnl } from '../../src/lib/format';
 
-function formatPnl(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}$${Math.abs(value).toFixed(2)}`;
-}
+type Period = 'today' | 'week' | 'month';
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mx-1 items-center">
-      <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">{label}</Text>
-      <Text className="text-lg font-black text-slate-800">{value}</Text>
-    </View>
-  );
-}
+const PERIOD_LABELS: Record<Period, string> = {
+  today: "Today's P&L",
+  week: "This Week's P&L",
+  month: "This Month's P&L",
+};
 
-function TradeRow({ trade }: { trade: TradeWithInstrument }) {
-  const pnl = computeTradePnl(trade);
-  const isWin = pnl >= 0;
-  const router = useRouter();
+// Sparkline is deliberately static (plan: purely decorative, no runtime data/animation).
+const SPARK_HEIGHTS = [16, 28, 20, 36, 24, 32, 20, 40, 28, 24];
+const SPARK_TINTS = ['bg-emerald-500/40', 'bg-emerald-500/70', 'bg-emerald-500'];
 
-  return (
-    <TouchableOpacity
-      className="bg-white p-4 rounded-2xl mb-3 shadow-sm border border-slate-100 flex-row justify-between items-center"
-      activeOpacity={0.7}
-      onPress={() => router.push(`/trade/${trade.id}`)}
-    >
-      <View className="flex-row items-center">
-        <View className="w-11 h-11 rounded-xl bg-slate-50 items-center justify-center mr-3">
-          <Ionicons
-            name={trade.direction === 'long' ? 'trending-up' : 'trending-down'}
-            size={22}
-            color={trade.direction === 'long' ? '#059669' : '#f43f5e'}
-          />
-        </View>
-        <View>
-          <Text className="font-bold text-base text-slate-900">{trade.symbol}</Text>
-          <Text className="text-slate-500 text-xs font-medium capitalize">{trade.direction} • {trade.size} units</Text>
-        </View>
-      </View>
-      <View className={`px-3 py-1 rounded-lg ${isWin ? 'bg-emerald-50' : 'bg-rose-50'}`}>
-        <Text className={`font-bold text-sm ${isWin ? 'text-emerald-700' : 'text-rose-500'}`}>
-          {trade.status === 'open' ? 'Open' : formatPnl(pnl)}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+function greetingForHour(hour: number): string {
+  if (hour >= 5 && hour <= 11) return 'Good morning';
+  if (hour >= 12 && hour <= 16) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { stats, recentTrades, weeklyGoal, loading, refetch } = useDashboard();
+  const { stats, recentTrades, weeklyGoal, loading, error } = useDashboard();
+  const [period, setPeriod] = useState<Period>('today');
 
-  const todayColor = stats.todayPnl >= 0 ? 'text-emerald-600' : 'text-rose-500';
-  const goalProgress = weeklyGoal ? Math.min(stats.weekPnl / weeklyGoal.amount, 1) : 0;
+  const selectedPnl = period === 'today' ? stats.todayPnl : period === 'week' ? stats.weekPnl : stats.monthPnl;
+  const goalProgress = weeklyGoal ? Math.min(Math.max(stats.weekPnl / weeklyGoal.amount, 0), 1) : 0;
+  const dimSpark = stats.totalTrades === 0;
 
   if (loading) {
     return (
@@ -72,23 +42,59 @@ export default function Dashboard() {
     );
   }
 
+  if (error) {
+    return (
+      <View className="flex-1 items-center justify-center bg-slate-50">
+        <EmptyState icon="alert-circle-outline" title="Couldn't load dashboard." subtitle={error.message} />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-slate-50" style={{ paddingTop: insets.top }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
 
-        {/* ── Hero P&L ── */}
-        <View className="items-center mb-8 mt-4">
-          <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Today's P&L</Text>
-          <Text className={`text-5xl font-black ${todayColor}`}>{formatPnl(stats.todayPnl)}</Text>
+        <View className="flex-row justify-between items-center mb-6">
+          <View>
+            <Text className="text-sm text-slate-500 font-medium">{greetingForHour(new Date().getHours())}</Text>
+            <Text className="text-2xl font-black text-slate-800">Dashboard</Text>
+          </View>
+          <View className="w-10 h-10 rounded-full bg-emerald-50 items-center justify-center">
+            <Text className="text-sm font-black text-emerald-700">PN</Text>
+          </View>
         </View>
 
-        {/* ── Weekly Goal Progress ── */}
+        <Card className="p-6 items-center mb-6">
+          <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">{PERIOD_LABELS[period]}</Text>
+          <PnlText value={selectedPnl} size="text-4xl" />
+          <View className="w-4/5 mt-5">
+            <Segmented
+              options={[
+                { key: 'today', label: 'Today' },
+                { key: 'week', label: 'Week' },
+                { key: 'month', label: 'Month' },
+              ]}
+              value={period}
+              onChange={setPeriod}
+            />
+          </View>
+          <View className="flex-row items-end gap-1 mt-5">
+            {SPARK_HEIGHTS.map((h, i) => (
+              <View
+                key={i}
+                className={`w-1.5 rounded-full ${dimSpark ? 'bg-slate-200' : SPARK_TINTS[i % SPARK_TINTS.length]}`}
+                style={{ height: h }}
+              />
+            ))}
+          </View>
+        </Card>
+
         {weeklyGoal ? (
-          <View className="bg-white p-5 rounded-3xl mb-6 shadow-sm border border-slate-100">
+          <Card className="p-5 mb-6">
             <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-slate-800 font-bold text-lg">Weekly Goal</Text>
-              <Text className="text-emerald-600 font-bold text-sm">
-                {formatPnl(stats.weekPnl)} / ${weeklyGoal.amount.toFixed(0)}
+              <Text className="text-lg font-bold text-slate-800">Weekly Goal</Text>
+              <Text className="text-sm font-bold text-emerald-600">
+                {formatPnl(stats.weekPnl)} / {formatMoney(weeklyGoal.amount)}
               </Text>
             </View>
             <View className="h-3 bg-slate-100 rounded-full overflow-hidden">
@@ -97,47 +103,43 @@ export default function Dashboard() {
                 style={{ width: `${Math.round(goalProgress * 100)}%` }}
               />
             </View>
-          </View>
+          </Card>
         ) : null}
 
-        {/* ── Quick Stats Row ── */}
         <View className="flex-row mb-6">
-          <StatCard label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} />
-          <StatCard label="Trades" value={String(stats.totalTrades)} />
-          <StatCard
-            label="Prof. Factor"
-            value={isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'}
-          />
+          <Card className="flex-1 mx-1 p-4 items-center">
+            <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Win Rate</Text>
+            <Text className="text-lg font-black text-slate-800">{stats.winRate.toFixed(0)}%</Text>
+          </Card>
+          <Card className="flex-1 mx-1 p-4 items-center">
+            <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Trades</Text>
+            <Text className="text-lg font-black text-slate-800">{String(stats.totalTrades)}</Text>
+          </Card>
+          <Card className="flex-1 mx-1 p-4 items-center">
+            <Text className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Prof. Factor</Text>
+            <Text className="text-lg font-black text-slate-800">
+              {isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'}
+            </Text>
+          </Card>
         </View>
 
-        {/* ── Recent Trades ── */}
-        <View className="flex-row justify-between items-center mb-4 px-1">
-          <Text className="text-xl font-bold text-slate-800">Recent Trades</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/trades')}>
-            <Text className="text-emerald-600 font-bold text-sm">See All</Text>
-          </TouchableOpacity>
-        </View>
-
+        <SectionHeader
+          title="Recent trades"
+          actionLabel="See All"
+          onAction={() => router.push('/(tabs)/trades')}
+        />
         {recentTrades.length === 0 ? (
-          <View className="items-center py-10">
-            <Ionicons name="receipt-outline" size={48} color="#cbd5e1" />
-            <Text className="text-slate-400 font-medium mt-3">No trades yet. Tap + to add your first.</Text>
-          </View>
+          <EmptyState icon="receipt-outline" title="No trades yet." subtitle="Tap + to log your first trade." />
         ) : (
-          recentTrades.map((trade) => <TradeRow key={trade.id} trade={trade} />)
+          recentTrades.map((trade) => (
+            <TradeRow key={trade.id} trade={trade} onPress={() => router.push(`/trade/${trade.id}`)} />
+          ))
         )}
 
       </ScrollView>
 
-      {/* ── FAB ── */}
       <View className="absolute bottom-8 right-6">
-        <TouchableOpacity
-          className="bg-emerald-600 w-16 h-16 rounded-full items-center justify-center shadow-lg"
-          activeOpacity={0.8}
-          onPress={() => router.push('/add-trade')}
-        >
-          <Ionicons name="add" size={32} color="white" />
-        </TouchableOpacity>
+        <Fab onPress={() => router.push('/add-trade')} />
       </View>
     </View>
   );
