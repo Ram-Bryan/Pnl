@@ -205,7 +205,9 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   const isNewInstruments = instrSql ? instrSql.sql.includes('equity') : false;
 
   if (!isNewInstruments) {
+    // foreign_keys OFF: DROP TABLE instruments would fail on an existing DB with trades; ids are preserved, so FKs re-resolve after the rename.
     await db.execAsync(`
+      PRAGMA foreign_keys = OFF;
       CREATE TABLE instruments_v2 (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol         TEXT NOT NULL,
@@ -224,12 +226,13 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
                  WHEN 'stock' THEN 'equity'
                  WHEN 'futures' THEN 'fno'
                  WHEN 'option' THEN 'fno'
-                 ELSE asset_class
+                 ELSE 'equity'
                END,
                quote_currency, price_mode, contract_size, tick_size, created_at
         FROM instruments;
       DROP TABLE instruments;
       ALTER TABLE instruments_v2 RENAME TO instruments;
+      PRAGMA foreign_keys = ON;
     `);
   }
 
