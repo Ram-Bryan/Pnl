@@ -37,9 +37,7 @@ export type TradeDraft = {
   exit_condition: string | null;
 };
 
-export type InsertTradeInput = TradeDraft & {
-  fills: { side: 'entry' | 'exit'; price: number; quantity: number; note: string | null; occurred_at: string }[];
-};
+export type RuleCheck = { ruleId: number; checked: 0 | 1 };
 
 // ============================================================
 // Database initialization — called by SQLiteProvider onInit.
@@ -453,6 +451,28 @@ export async function getStrategyRules(db: SQLiteDatabase, strategyId: number): 
     `SELECT * FROM strategy_rules WHERE strategy_id = ? AND archived_at IS NULL ORDER BY sort_order`,
     [strategyId]
   );
+}
+
+export async function getTradeTags(db: SQLiteDatabase, tradeId: number): Promise<Tag[]> {
+  return db.getAllAsync<Tag>(
+    `SELECT t.* FROM tags t JOIN trade_tags tt ON tt.tag_id = t.id WHERE tt.trade_id = ? ORDER BY t.id`,
+    [tradeId]
+  );
+}
+
+export async function getTradeRuleChecks(db: SQLiteDatabase, tradeId: number): Promise<RuleCheck[]> {
+  return db.getAllAsync<RuleCheck>(
+    `SELECT strategy_rule_id AS ruleId, checked FROM trade_rule_checks WHERE trade_id = ?`,
+    [tradeId]
+  );
+}
+
+export async function getTradeScreenshots(db: SQLiteDatabase, tradeId: number): Promise<string[]> {
+  const rows = await db.getAllAsync<{ file_path: string }>(
+    `SELECT file_path FROM trade_screenshots WHERE trade_id = ? ORDER BY sort_order`,
+    [tradeId]
+  );
+  return rows.map((row) => row.file_path);
 }
 
 export async function saveTradeAssociations(
