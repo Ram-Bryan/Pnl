@@ -12,7 +12,20 @@ export type Account = {
   created_at: string;
 };
 
-export type AssetClass = 'stock' | 'forex' | 'futures' | 'crypto' | 'option' | 'other';
+export type AssetClass = 'equity' | 'fno' | 'crypto' | 'forex' | 'gold' | 'currency';
+export type TradeStyle = 'intraday' | 'positional' | 'swing' | 'investment';
+
+export type TradeFill = {
+  id: number;
+  trade_id: number;
+  side: 'entry' | 'exit';
+  price: number;
+  quantity: number;
+  note: string | null;
+  occurred_at: string;
+  sort_order: number;
+};
+
 export type PriceMode = 'standard' | 'cents';
 
 export type Instrument = {
@@ -64,6 +77,9 @@ export type Trade = {
   instrument_id: number;
   strategy_id: number | null;
   emotion_id: number | null;
+  trade_style: TradeStyle | null;
+  entry_condition: string | null;
+  exit_condition: string | null;
   direction: TradeDirection;
   status: TradeStatus;
   entry_price: number;

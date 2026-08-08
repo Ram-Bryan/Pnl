@@ -77,6 +77,9 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       instrument_id  INTEGER NOT NULL REFERENCES instruments(id),
       strategy_id    INTEGER REFERENCES strategies(id),
       emotion_id     INTEGER REFERENCES emotions(id),
+      trade_style    TEXT CHECK (trade_style IN ('intraday','positional','swing','investment')),
+      entry_condition TEXT,
+      exit_condition  TEXT,
       direction      TEXT NOT NULL CHECK (direction IN ('long','short')),
       status         TEXT NOT NULL CHECK (status IN ('open','closed')) DEFAULT 'open',
       entry_price    REAL NOT NULL,
@@ -99,6 +102,20 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_trades_instrument  ON trades(instrument_id);`);
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_trades_strategy    ON trades(strategy_id);`);
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_trades_status      ON trades(status);`);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS trade_fills (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      trade_id    INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+      side        TEXT    NOT NULL CHECK (side IN ('entry','exit')),
+      price       REAL    NOT NULL,
+      quantity    REAL    NOT NULL,
+      note        TEXT,
+      occurred_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      sort_order  INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+  await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_trade_fills_trade ON trade_fills(trade_id);`);
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS trade_rule_checks (
@@ -169,6 +186,76 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       ['Main', 'USD', 0]
     );
   }
+
+  // --- v2 upgrade (additive; no-op on fresh installs) ---
+  const tradesCols = await db.getAllAsync<{ name: string }>(
+    `SELECT name FROM pragma_table_info('trades')`
+  );
+  const hasTradeStyle = tradesCols.some((c) => c.name === 'trade_style');
+
+  if (!hasTradeStyle) {
+    await db.execAsync(`ALTER TABLE trades ADD COLUMN trade_style TEXT CHECK (trade_style IN ('intraday','positional','swing','investment'));`);
+    await db.execAsync(`ALTER TABLE trades ADD COLUMN entry_condition TEXT;`);
+    await db.execAsync(`ALTER TABLE trades ADD COLUMN exit_condition TEXT;`);
+  }
+
+  const instrSql = await db.getFirstAsync<{ sql: string }>(
+    `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'instruments'`
+  );
+  const isNewInstruments = instrSql ? instrSql.sql.includes('equity') : false;
+
+  if (!isNewInstruments) {
+    await db.execAsync(`
+      CREATE TABLE instruments_v2 (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol         TEXT NOT NULL,
+        name           TEXT,
+        asset_class    TEXT NOT NULL CHECK (asset_class IN ('equity','fno','crypto','forex','gold','currency')),
+        quote_currency TEXT NOT NULL DEFAULT 'USD',
+        price_mode     TEXT NOT NULL CHECK (price_mode IN ('standard','cents')) DEFAULT 'standard',
+        contract_size  REAL NOT NULL DEFAULT 1,
+        tick_size      REAL,
+        created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (symbol, asset_class)
+      );
+      INSERT INTO instruments_v2 (id, symbol, name, asset_class, quote_currency, price_mode, contract_size, tick_size, created_at)
+        SELECT id, symbol, name,
+               CASE asset_class
+                 WHEN 'stock' THEN 'equity'
+                 WHEN 'futures' THEN 'fno'
+                 WHEN 'option' THEN 'fno'
+                 ELSE asset_class
+               END,
+               quote_currency, price_mode, contract_size, tick_size, created_at
+        FROM instruments;
+      DROP TABLE instruments;
+      ALTER TABLE instruments_v2 RENAME TO instruments;
+    `);
+  }
+
+  // --- seed reference data (idempotent) ---
+  await db.execAsync(`
+    INSERT OR IGNORE INTO emotions (name, color) VALUES
+      ('Calm', '#059669'), ('Confident', '#059669'), ('Focused', '#0284c7'),
+      ('Anxious', '#f59e0b'), ('Fear', '#f59e0b'), ('Greed', '#ef4444'),
+      ('FOMO', '#ef4444'), ('Revenge', '#dc2626'), ('Impatient', '#f59e0b'),
+      ('Frustrated', '#f59e0b');
+
+    INSERT OR IGNORE INTO tags (name, color) VALUES
+      ('Rushed entry', '#ef4444'), ('Chased price', '#ef4444'),
+      ('Moved stop', '#f59e0b'), ('Oversized', '#ef4444'),
+      ('No plan', '#f59e0b'), ('Entered too early', '#f59e0b'),
+      ('Exited too early', '#f59e0b'), ('Held too long', '#f59e0b'),
+      ('Skipped the setup', '#94a3b8'), ('Followed rules', '#059669');
+
+    INSERT OR IGNORE INTO strategies (name, description) VALUES
+      ('Breakout', 'Enter on a confirmed breakout of a level.'),
+      ('Trend Following', 'Trade in the direction of the dominant trend.'),
+      ('Mean Reversion', 'Fade extended moves back toward the mean.'),
+      ('Scalping', 'Very short holding times, small targets.'),
+      ('News Trade', 'Trade the reaction to scheduled news.'),
+      ('Swing', 'Multi-day swing setups.');
+  `);
 }
 
 // ============================================================
