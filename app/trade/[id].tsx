@@ -29,12 +29,20 @@ export default function TradeDetail() {
   const router = useRouter();
   const db = useSQLiteContext();
   const parsedId = parseInt(id, 10);
-  const { data, loading } = useTradeDetail(Number.isNaN(parsedId) ? 0 : parsedId);
+  const { data, error, loading } = useTradeDetail(Number.isNaN(parsedId) ? 0 : parsedId);
 
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-slate-50">
         <ActivityIndicator size="large" color="#059669" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View className="flex-1 items-center justify-center bg-slate-50">
+        <EmptyState icon="alert-circle-outline" title="Couldn't load this trade." subtitle={error} />
       </View>
     );
   }

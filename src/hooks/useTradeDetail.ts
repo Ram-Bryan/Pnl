@@ -24,9 +24,11 @@ export function useTradeDetail(id: number) {
   const db = useSQLiteContext();
   const [data, setData] = useState<TradeDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [tradeData, tagRows, ruleRows, screenshotPaths, emotionRows] = await Promise.all([
         getTradeWithFills(db, id),
@@ -47,7 +49,9 @@ export function useTradeDetail(id: number) {
         screenshots: screenshotPaths,
         emotion: emotionRows.find((e) => e.id === tradeData.trade.emotion_id) ?? null,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : String(e));
       setData(null);
     } finally {
       setLoading(false);
@@ -56,5 +60,5 @@ export function useTradeDetail(id: number) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { data, loading, refetch: fetch };
+  return { data, error, loading, refetch: fetch };
 }
