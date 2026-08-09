@@ -1,42 +1,88 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card } from './Card';
-import { PnlText } from './PnlText';
-import { ASSET_CLASSES, TRADE_STYLES } from '../lib/constants';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
 
-export function TradeRow({ trade, onPress }: { trade: TradeWithInstrument; onPress: () => void }) {
-  const assetClass = ASSET_CLASSES.find((c) => c.key === trade.asset_class);
-  const styleLabel = TRADE_STYLES.find((s) => s.key === trade.trade_style)?.label ?? '—';
-  const entryDate = trade.entry_at.slice(0, 10);
+export function TradeRow({
+  trade,
+  onPress,
+  index = 0,
+}: {
+  trade: TradeWithInstrument;
+  onPress: () => void;
+  index?: number;
+}) {
+  const entryDate = new Date(trade.entry_at).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
   const isOpen = trade.status === 'open';
+  const pnl = isOpen ? 0 : computeTradePnl(trade);
+  const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
+  const pnlFormatted = isOpen ? '–' : `$${Math.abs(pnl).toFixed(2)}`;
+
+  const directionColor = trade.direction === 'long' ? '#00E68A' : '#FF4D6A';
+  const dirBg = trade.direction === 'long' ? 'rgba(0,230,138,0.1)' : 'rgba(255,77,106,0.1)';
+
+  // Investment = entry_price × price_mode_multiplier × size × contract_size
+  const multiplier = trade.price_mode === 'cents' ? 0.01 : 1;
+  const invested = trade.entry_price * multiplier * trade.size * trade.contract_size;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} className="mb-3">
-      <Card className="p-4 flex-row items-center">
-        <View className="w-11 h-11 rounded-xl bg-emerald-50 items-center justify-center mr-3">
-          <Ionicons name={assetClass?.icon ?? 'help-circle'} size={22} color="#059669" />
-        </View>
-        <View className="flex-1">
-          <View className="flex-row items-center gap-x-2">
-            <Text className="font-bold text-base text-slate-900">{trade.symbol}</Text>
-            <View className={`px-2 py-0.5 rounded-md ${isOpen ? 'bg-amber-50' : 'bg-slate-100'}`}>
-              <Text className={`text-xs font-bold capitalize ${isOpen ? 'text-amber-600' : 'text-slate-500'}`}>
-                {trade.status}
+    <Animated.View entering={FadeInDown.duration(400).delay(index * 50).springify().damping(18)}>
+      <Pressable
+        onPress={onPress}
+        className="mb-3 bg-dark-card rounded-2xl border border-dark-border p-4"
+        style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+      >
+        {/* ROW 1: Symbol & Direction | PnL */}
+        <View className="flex-row items-center justify-between mb-2.5">
+          <View className="flex-row items-center gap-x-3">
+            <Text className="font-bold text-base text-white tracking-wide">{trade.symbol}</Text>
+            <View
+              className="px-2 py-0.5 rounded-md border"
+              style={{ borderColor: directionColor, backgroundColor: dirBg }}
+            >
+              <Text style={{ color: directionColor }} className="text-[10px] font-bold uppercase tracking-widest">
+                {trade.direction === 'long' ? 'LONG' : 'SHORT'}
               </Text>
             </View>
           </View>
-          <Text className="text-slate-500 text-xs font-medium mt-0.5">
-            {styleLabel} · {trade.direction === 'long' ? 'Long' : 'Short'} · {entryDate}
+          <Text style={{ color: pnlColor }} className="text-base font-black tracking-wide">
+            {pnlFormatted}
           </Text>
         </View>
-        {isOpen ? (
-          <Text className="text-slate-400 font-bold">–</Text>
-        ) : (
-          <PnlText value={computeTradePnl(trade)} />
-        )}
-      </Card>
-    </TouchableOpacity>
+
+        {/* ROW 2: Investment */}
+        <View className="flex-row items-center mb-2.5">
+          <Ionicons name="wallet-outline" size={13} color="#6b6880" />
+          <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
+            Inv: ${Math.round(invested)}
+          </Text>
+        </View>
+
+        {/* ROW 3: Date · Duration · Status */}
+        <View className="flex-row items-center gap-x-4">
+          <View className="flex-row items-center gap-x-1">
+            <Ionicons name="calendar-outline" size={12} color="#6b6880" />
+            <Text className="text-[11px] font-medium" style={{ color: '#6b6880' }}>{entryDate}</Text>
+          </View>
+          <View
+            className="px-2 py-0.5 rounded-md"
+            style={{ backgroundColor: isOpen ? 'rgba(77,158,255,0.12)' : 'rgba(0,230,138,0.1)' }}
+          >
+            <Text
+              className="text-[9px] font-bold uppercase tracking-widest"
+              style={{ color: isOpen ? '#4D9EFF' : '#00E68A' }}
+            >
+              {isOpen ? 'Open' : 'Closed'}
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }

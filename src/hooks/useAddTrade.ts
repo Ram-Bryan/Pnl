@@ -12,10 +12,10 @@ import {
   Tag,
   Strategy,
   StrategyRule,
+  Instrument,
 } from '../db/schema';
 import {
   TradeDraft,
-  getOrCreateInstrument,
   insertTradeWithFills,
   updateTradeWithFills,
   getTradeWithFills,
@@ -28,6 +28,7 @@ import {
   getTradeTags,
   getTradeRuleChecks,
   getTradeScreenshots,
+  getInstruments,
 } from '../db/database';
 import { averageFillPrice, totalQuantity } from '../lib/aggregateFills';
 
@@ -36,10 +37,7 @@ export type FillSide = 'entry' | 'exit';
 type FillRowState = { price: string; quantity: string; note: string };
 
 type FormState = {
-  symbol: string;
-  assetClass: AssetClass;
-  priceMode: PriceMode;
-  style: TradeStyle;
+  instrumentId: number | null;
   direction: 'long' | 'short';
   status: 'open' | 'closed';
   entryFills: FillRowState[];
@@ -49,11 +47,12 @@ type FormState = {
   strategyId: number | null;
   emotionId: number | null;
   tagIds: number[];
+  emotionIds: number[];
   entryCondition: string | null;
   exitCondition: string | null;
-  entryNotes: string;
-  exitNotes: string;
+  notes: string;
   entryAt: string;
+  exitAt: string;
   fees: string;
   screenshots: string[];
 };
@@ -61,11 +60,11 @@ type FormState = {
 const SCREENSHOT_LIMIT = 6;
 
 function createDefaultForm(): FormState {
+  const now = new Date();
+  const formatIso = (d: Date) => d.toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss
+  
   return {
-    symbol: '',
-    assetClass: 'equity',
-    priceMode: 'standard',
-    style: 'intraday',
+    instrumentId: null,
     direction: 'long',
     status: 'closed',
     entryFills: [{ price: '', quantity: '', note: '' }],
@@ -75,21 +74,22 @@ function createDefaultForm(): FormState {
     strategyId: null,
     emotionId: null,
     tagIds: [],
+    emotionIds: [],
     entryCondition: null,
     exitCondition: null,
-    entryNotes: '',
-    exitNotes: '',
-    entryAt: new Date().toISOString().slice(0, 16),
+    notes: '',
+    entryAt: formatIso(now),
+    exitAt: formatIso(now),
     fees: '0',
     screenshots: [],
   };
 }
 
 function validateForm(f: FormState): string | null {
-  if (!f.symbol.trim()) return 'Symbol is required.';
+  if (f.instrumentId == null) return 'Symbol is required.';
   if (f.entryFills.length === 0 || f.entryFills.some((r) => !r.price.trim() || !r.quantity.trim()))
     return 'Add at least one entry fill with price and quantity.';
-  if (f.status === 'closed' && (f.exitFills.length === 0 || f.exitFills.some((r) => !r.price.trim() || !r.quantity.trim())))
+  if (f.status === 'closed' && (f.exitFills.length === 0 || f.exitFills.some((r) => !r.price.trim())))
     return 'Closed trades need at least one exit fill.';
   if (parseFloat(f.fees) < 0) return 'Fees must be zero or positive.';
   return null;
@@ -118,8 +118,9 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [strategyRules, setStrategyRules] = useState<StrategyRule[]>([]);
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(editMode);
+  const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string | null>(null);
 
   const strategyIdRef = useRef(fields.strategyId);
@@ -131,17 +132,22 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     let mounted = true;
     (async () => {
       try {
-        const [emotionRows, tagRows, strategyRows] = await Promise.all([
+        const [emotionRows, tagRows, strategyRows, instRows] = await Promise.all([
           getEmotions(db),
           getTags(db),
           getStrategies(db),
+          getInstruments(db),
         ]);
         if (!mounted) return;
         setEmotions(emotionRows);
         setTags(tagRows);
         setStrategies(strategyRows);
+        setInstruments(instRows);
 
-        if (!editMode || tradeId == null) return;
+        if (!editMode || tradeId == null) {
+          if (mounted) setLoading(false);
+          return;
+        }
 
         const data = await getTradeWithFills(db, tradeId);
         if (!data) return;
@@ -163,12 +169,12 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
         const checks: Record<number, boolean> = {};
         for (const rc of ruleRows) checks[rc.ruleId] = rc.checked === 1;
         setRuleChecks(checks);
+        
+        const padDate = (dateStr: string) => dateStr.slice(0, 19);
+        const formatNow = () => new Date().toISOString().slice(0, 19);
 
         setFields({
-          symbol: trade.symbol,
-          assetClass: trade.asset_class,
-          priceMode: trade.price_mode,
-          style: trade.trade_style ?? 'intraday',
+          instrumentId: trade.instrument_id,
           direction: trade.direction,
           status: trade.status,
           entryFills: entryFills.length > 0 ? entryFills : [{ price: '', quantity: '', note: '' }],
@@ -178,11 +184,12 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
           strategyId: trade.strategy_id,
           emotionId: trade.emotion_id,
           tagIds: tradeTagRows.map((t) => t.id),
+          emotionIds: trade.emotion_id != null ? [trade.emotion_id] : [],
           entryCondition: trade.entry_condition,
           exitCondition: trade.exit_condition,
-          entryNotes: trade.notes ?? '',
-          exitNotes: trade.reflection ?? '',
-          entryAt: trade.entry_at.slice(0, 16),
+          notes: trade.notes ?? '',
+          entryAt: trade.entry_at ? padDate(trade.entry_at) : formatNow(),
+          exitAt: trade.exit_at ? padDate(trade.exit_at) : formatNow(),
           fees: String(trade.fees),
           screenshots: screenshotPaths,
         });
@@ -204,14 +211,6 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     setFields((f) => ({ ...f, [key]: value }));
   }, []);
 
-  const setAssetClass = useCallback((assetClass: AssetClass) => {
-    setFields((f) => ({
-      ...f,
-      assetClass,
-      priceMode: assetClass === 'fno' ? 'cents' : f.priceMode,
-    }));
-  }, []);
-
   const toggleTag = useCallback((id: number) => {
     setFields((f) => ({
       ...f,
@@ -220,7 +219,13 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
   }, []);
 
   const toggleEmotion = useCallback((id: number) => {
-    setFields((f) => ({ ...f, emotionId: f.emotionId === id ? null : id }));
+    setFields((f) => ({
+      ...f,
+      emotionId: f.emotionId === id ? null : id, // keep single for DB draft
+      emotionIds: f.emotionIds.includes(id)
+        ? f.emotionIds.filter((e) => e !== id)
+        : [...f.emotionIds, id],
+    }));
   }, []);
 
   const toggleRuleCheck = useCallback((ruleId: number) => {
@@ -291,7 +296,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     setSaving(true);
     setErrors(null);
     try {
-      const instrumentId = await getOrCreateInstrument(db, fields.symbol, fields.assetClass, fields.priceMode);
+      if (!fields.instrumentId) throw new Error("Instrument ID is missing.");
       const account = await db.getFirstAsync<{ id: number }>('SELECT id FROM accounts LIMIT 1');
       if (!account) throw new Error('No account found. Please restart the app.');
 
@@ -300,28 +305,29 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
         price: parseFloat(r.price),
         quantity: parseFloat(r.quantity),
         note: r.note.trim() || null,
-        occurred_at: fields.entryAt,
+        occurred_at: fields.entryAt, // Fills sync to trade time for simplicity right now
       }));
+      const entryPrice = averageFillPrice(entryFills);
+      const size = totalQuantity(entryFills);
+
       const exitFills = fields.status === 'closed'
         ? fields.exitFills.map((r) => ({
             side: 'exit' as const,
             price: parseFloat(r.price),
-            quantity: parseFloat(r.quantity),
+            quantity: size,
             note: r.note.trim() || null,
-            occurred_at: new Date().toISOString(),
+            occurred_at: fields.exitAt,
           }))
         : [];
 
-      const entryPrice = averageFillPrice(entryFills);
-      const size = totalQuantity(entryFills);
       const exitPrice = exitFills.length > 0 ? averageFillPrice(exitFills) : null;
-      const exitAt = exitFills.length > 0 ? new Date().toISOString() : null;
+      const exitAt = exitFills.length > 0 ? fields.exitAt : null;
 
       const draft: TradeDraft = {
         account_id: account.id,
-        instrument_id: instrumentId,
+        instrument_id: fields.instrumentId,
         strategy_id: fields.strategyId,
-        emotion_id: fields.emotionId,
+        emotion_id: fields.emotionIds.length > 0 ? fields.emotionIds[0] : null,
         direction: fields.direction,
         status: fields.status,
         entry_price: entryPrice,
@@ -333,9 +339,9 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
         exit_at: exitAt,
         fees: parseFloat(fields.fees) || 0,
         followed_rules: null,
-        notes: fields.entryNotes.trim() || null,
-        reflection: fields.exitNotes.trim() || null,
-        trade_style: fields.style,
+        notes: fields.notes.trim() || null,
+        reflection: null,
+        trade_style: null,
         entry_condition: fields.entryCondition,
         exit_condition: fields.exitCondition,
       };
@@ -382,19 +388,16 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
   return {
     fields,
     setters: {
-      setSymbol: (v: string) => setField('symbol', v),
-      setAssetClass,
-      setPriceMode: (v: PriceMode) => setField('priceMode', v),
-      setStyle: (v: TradeStyle) => setField('style', v),
+      setInstrumentId: (v: number | null) => setField('instrumentId', v),
       setDirection: (v: 'long' | 'short') => setField('direction', v),
       setStatus: (v: 'open' | 'closed') => setField('status', v),
       setStopLoss: (v: string) => setField('stopLoss', v),
       setTakeProfit: (v: string) => setField('takeProfit', v),
       setEntryCondition: (v: string | null) => setField('entryCondition', v),
       setExitCondition: (v: string | null) => setField('exitCondition', v),
-      setEntryNotes: (v: string) => setField('entryNotes', v),
-      setExitNotes: (v: string) => setField('exitNotes', v),
+      setNotes: (v: string) => setField('notes', v),
       setEntryAt: (v: string) => setField('entryAt', v),
+      setExitAt: (v: string) => setField('exitAt', v),
       setFees: (v: string) => setField('fees', v),
       toggleTag,
       toggleEmotion,
@@ -403,7 +406,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
       addScreenshots,
       removeScreenshot,
     },
-    pickers: { emotions, tags, strategies, strategyRules },
+    pickers: { emotions, tags, strategies, strategyRules, instruments },
     errors,
     fillRows,
     addFill,

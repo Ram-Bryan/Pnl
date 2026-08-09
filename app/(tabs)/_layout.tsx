@@ -7,14 +7,17 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopWidth: 0,
-          elevation: 10,
-          height: 62,
+          backgroundColor: '#0A0E1A',
+          borderTopWidth: 1,
+          borderTopColor: '#1F2437',
+          elevation: 0,
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 4,
         },
-        tabBarActiveTintColor: '#059669',
-        tabBarInactiveTintColor: '#94a3b8',
-        tabBarLabelStyle: { paddingBottom: 6, fontWeight: '600', fontSize: 11 },
+        tabBarActiveTintColor: '#00E68A',
+        tabBarInactiveTintColor: '#555B6E',
+        tabBarLabelStyle: { fontWeight: '700', fontSize: 11 },
       }}
     >
       <Tabs.Screen
@@ -32,6 +35,15 @@ export default function TabLayout() {
           title: 'Trades',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="symbols"
+        options={{
+          title: 'Symbols',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetags" size={size} color={color} />
           ),
         }}
       />

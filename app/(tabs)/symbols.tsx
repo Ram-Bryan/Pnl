@@ -1,0 +1,259 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, TextInput, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { EmptyState, Sheet } from '../../src/ui';
+import { Instrument, AssetClass, PriceMode } from '../../src/db/schema';
+import { getInstruments, insertInstrument, deleteInstrument, updateInstrument } from '../../src/db/database';
+import { ASSET_CLASSES } from '../../src/lib/constants';
+
+function FormInput({ value, onChange, placeholder, keyboardType="default" }: any) {
+  return (
+    <View className="bg-[#13141a] rounded-xl px-3 h-[52px] border border-[#1e1d2b] flex-row items-center mb-8">
+      <TextInput 
+        className="flex-1 text-white text-sm font-medium" 
+        placeholder={placeholder} 
+        placeholderTextColor="#3e3b4b" 
+        value={value} 
+        onChangeText={onChange} 
+        keyboardType={keyboardType} 
+        autoCapitalize={keyboardType === 'default' ? 'characters' : 'none'}
+      />
+    </View>
+  );
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return <Text className="text-white font-black text-lg mb-3">{label}</Text>;
+}
+
+function SegmentedMode({ value, onChange }: { value: string, onChange: (v: any) => void }) {
+  const options = [{ key: 'standard', label: 'Standard' }, { key: 'cents', label: 'Cents' }];
+  return (
+    <View className="flex-row bg-[#13141a] rounded-2xl p-1 gap-x-1 mb-8">
+      {options.map(o => {
+        const isSelected = value === o.key;
+        return (
+          <Pressable
+            key={o.key}
+            onPress={() => onChange(o.key)}
+            className="flex-1 py-3 rounded-xl items-center"
+            style={{ backgroundColor: isSelected ? '#00E68A' : 'transparent' }}
+          >
+            <Text className="font-bold text-sm" style={{ color: isSelected ? '#13141a' : '#6b6880' }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function SegmentedAsset({ value, onChange }: { value: string, onChange: (v: any) => void }) {
+  return (
+    <View className="flex-row flex-wrap bg-[#13141a] rounded-2xl p-1 mb-8">
+      {ASSET_CLASSES.map(o => {
+        const isSelected = value === o.key;
+        return (
+          <Pressable
+            key={o.key}
+            onPress={() => onChange(o.key)}
+            className="py-2.5 px-3 rounded-xl items-center flex-grow"
+            style={{ backgroundColor: isSelected ? '#00E68A' : 'transparent' }}
+          >
+            <Text className="font-bold text-[12px]" style={{ color: isSelected ? '#13141a' : '#6b6880' }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+export default function SymbolsTab() {
+  const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Sheet state
+  const [isSheetOpen, setSheetOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  
+  // Form state
+  const [symbol, setSymbol] = useState('');
+  const [assetClass, setAssetClass] = useState<AssetClass>('equity');
+  const [priceMode, setPriceMode] = useState<PriceMode>('standard');
+  const [contractSize, setContractSize] = useState('1');
+  const [saving, setSaving] = useState(false);
+
+  const fetchInstruments = async () => {
+    try {
+      const data = await getInstruments(db);
+      setInstruments(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInstruments();
+  }, [db]);
+
+  const openAdd = () => {
+    setEditingId(null);
+    setSymbol('');
+    setAssetClass('equity');
+    setPriceMode('standard');
+    setContractSize('1');
+    setSheetOpen(true);
+  };
+
+  const openEdit = (inst: Instrument) => {
+    setEditingId(inst.id);
+    setSymbol(inst.symbol);
+    setAssetClass(inst.asset_class);
+    setPriceMode(inst.price_mode);
+    setContractSize(String(inst.contract_size));
+    setSheetOpen(true);
+  };
+
+  const save = async () => {
+    if (!symbol.trim()) {
+      Alert.alert('Error', 'Symbol is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        symbol: symbol.toUpperCase(),
+        name: null,
+        asset_class: assetClass,
+        quote_currency: 'USD',
+        price_mode: priceMode,
+        contract_size: parseFloat(contractSize) || 1,
+        tick_size: null,
+      };
+      
+      if (editingId) {
+        await updateInstrument(db, editingId, payload);
+      } else {
+        await insertInstrument(db, payload);
+      }
+      setSheetOpen(false);
+      await fetchInstruments();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = (id: number, sym: string) => {
+    Alert.alert('Delete Symbol', `Are you sure you want to delete ${sym}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+          await deleteInstrument(db, id);
+          fetchInstruments();
+      }},
+    ]);
+  };
+
+  if (loading) {
+    return <View className="flex-1 items-center justify-center bg-dark-bg"><ActivityIndicator size="large" color="#00E68A" /></View>;
+  }
+
+  return (
+    <View className="flex-1 bg-dark-bg" style={{ paddingTop: insets.top }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Animated.View entering={FadeIn.duration(400)} className="flex-row justify-between items-center px-4 pt-4 pb-2 bg-dark-bg">
+        <Text className="text-2xl font-black text-dark-text">Symbols</Text>
+        <TouchableOpacity onPress={openAdd} className="bg-[#1a1b24] p-3 rounded-2xl border border-[#2b2d3a]">
+          <Ionicons name="add" size={20} color="#00E68A" />
+        </TouchableOpacity>
+      </Animated.View>
+      
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}>
+        {instruments.length === 0 ? (
+          <EmptyState icon="pricetags" title="No symbols yet." subtitle="Tap the + button to add one." />
+        ) : (
+          instruments.map((inst, i) => (
+            <Animated.View key={inst.id} entering={FadeInDown.duration(400).delay(Math.min(i * 60, 600)).springify().damping(18)}>
+              <TouchableOpacity
+                onPress={() => openEdit(inst)}
+                activeOpacity={0.7}
+                className="bg-[#13141a] rounded-2xl p-4 mb-3 border border-[#1e1d2b] flex-row items-center justify-between"
+              >
+                <View className="w-12 h-12 rounded-xl bg-[#1a1b24] border border-[#2b2d3a] items-center justify-center mr-4">
+                  <Ionicons name="bar-chart-outline" size={24} color="#00E68A" />
+                </View>
+                <View className="flex-1 pr-4">
+                  <View className="flex-row items-center gap-x-2 mb-1.5">
+                    <Text className="text-white text-lg font-black tracking-wide">{inst.symbol}</Text>
+                  </View>
+                  <View className="flex-row items-center gap-x-2">
+                    <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.asset_class}</Text>
+                    <View className="w-1 h-1 rounded-full bg-[#1e1d2b]" />
+                    <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.price_mode}</Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center">
+                  <TouchableOpacity onPress={() => confirmDelete(inst.id, inst.symbol)} className="p-2 bg-[#FF4D6A]/10 rounded-xl border border-[#FF4D6A]/20">
+                    <Ionicons name="trash" size={18} color="#FF4D6A" />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          ))
+        )}
+      </ScrollView>
+
+      <Sheet visible={isSheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "Edit Symbol" : "Add Symbol"}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView showsVerticalScrollIndicator={false} className="mt-4">
+            
+            <SectionLabel label="Symbol" />
+            <FormInput value={symbol} onChange={setSymbol} placeholder="e.g. AAPL" />
+            
+            <SectionLabel label="Asset Class" />
+            <SegmentedAsset 
+              value={assetClass} 
+              onChange={(v) => { 
+                setAssetClass(v as AssetClass); 
+                if (v === 'fno') setPriceMode('cents'); 
+              }} 
+            />
+
+            <SectionLabel label="Price Mode" />
+            <SegmentedMode value={priceMode} onChange={setPriceMode} />
+            
+            <SectionLabel label="Contract Size" />
+            <FormInput value={contractSize} onChange={setContractSize} placeholder="1" keyboardType="numeric" />
+
+            <View className="h-6" />
+          </ScrollView>
+
+          <View className="pt-2 pb-6">
+            <Pressable
+              onPress={save}
+              disabled={saving}
+              className="bg-[#2d7df6] rounded-2xl py-4 items-center"
+              style={{ opacity: saving ? 0.7 : 1 }}
+            >
+              <Text className="text-white font-black tracking-wide">
+                {saving ? 'Saving...' : 'Save Symbol'}
+              </Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Sheet>
+    </View>
+  );
+}

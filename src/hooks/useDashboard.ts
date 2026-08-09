@@ -6,7 +6,7 @@ import { TradeWithInstrument, StatsResult, computeStats } from '../stats/compute
 
 type DashboardData = {
   stats: StatsResult;
-  recentTrades: TradeWithInstrument[];
+  trades: TradeWithInstrument[];
   weeklyGoal: Goal | null;
   loading: boolean;
   error: Error | null;
@@ -14,15 +14,15 @@ type DashboardData = {
 };
 
 const EMPTY_STATS: StatsResult = {
-  todayPnl: 0, weekPnl: 0, monthPnl: 0,
-  winRate: 0, totalTrades: 0, profitFactor: 0,
+  todayPnl: 0, weekPnl: 0, monthPnl: 0, allTimePnl: 0,
+  winRate: 0, totalTrades: 0, wins: 0, losses: 0,
   expectancy: 0, currentStreak: 0,
 };
 
 export function useDashboard(): DashboardData {
   const db = useSQLiteContext();
   const [stats, setStats] = useState<StatsResult>(EMPTY_STATS);
-  const [recentTrades, setRecentTrades] = useState<TradeWithInstrument[]>([]);
+  const [trades, setTrades] = useState<TradeWithInstrument[]>([]);
   const [weeklyGoal, setWeeklyGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -31,7 +31,7 @@ export function useDashboard(): DashboardData {
     if (!options?.silent) setLoading(true);
     setError(null);
     try {
-      const trades = await db.getAllAsync<TradeWithInstrument>(`
+      const tradesList = await db.getAllAsync<TradeWithInstrument>(`
         SELECT t.*,
                i.symbol,
                i.name   AS instrument_name,
@@ -59,8 +59,8 @@ export function useDashboard(): DashboardData {
         LIMIT 1
       `);
 
-      setStats(computeStats(trades));
-      setRecentTrades(trades.slice(0, 5));
+      setStats(computeStats(tradesList));
+      setTrades(tradesList);
       setWeeklyGoal(goal ?? null);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -73,5 +73,5 @@ export function useDashboard(): DashboardData {
 
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
-  return { stats, recentTrades, weeklyGoal, loading, error, refetch: fetch };
+  return { stats, trades, weeklyGoal, loading, error, refetch: fetch };
 }

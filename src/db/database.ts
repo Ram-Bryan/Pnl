@@ -11,6 +11,7 @@ import {
   Tag,
   Strategy,
   StrategyRule,
+  Instrument,
 } from './schema';
 import { TradeWithInstrument } from '../stats/computeStats';
 
@@ -528,26 +529,42 @@ export async function saveTradeScreenshots(
 // Instrument helpers
 // ============================================================
 
-/**
- * Look up an instrument by symbol (case-insensitive) and asset class.
- * Creates one if it doesn't exist. Returns the instrument id.
- */
-export async function getOrCreateInstrument(
+export async function getInstruments(db: SQLiteDatabase): Promise<Instrument[]> {
+  return db.getAllAsync<Instrument>('SELECT * FROM instruments ORDER BY symbol');
+}
+
+export async function insertInstrument(
   db: SQLiteDatabase,
-  rawSymbol: string,
-  assetClass: AssetClass,
-  priceMode: PriceMode
+  inst: Omit<Instrument, 'id' | 'created_at'>
 ): Promise<number> {
-  const symbol = rawSymbol.toUpperCase().trim();
-  const existing = await db.getFirstAsync<{ id: number }>(
-    `SELECT id FROM instruments WHERE symbol = ? AND asset_class = ? LIMIT 1`,
-    [symbol, assetClass]
-  );
-  if (existing) return existing.id;
   const result = await db.runAsync(
-    `INSERT INTO instruments (symbol, asset_class, price_mode, contract_size)
-     VALUES (?, ?, ?, 1)`,
-    [symbol, assetClass, priceMode]
+    `INSERT INTO instruments (symbol, name, asset_class, quote_currency, price_mode, contract_size, tick_size)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      inst.symbol.toUpperCase().trim(),
+      inst.name ?? null,
+      inst.asset_class,
+      inst.quote_currency || 'USD',
+      inst.price_mode,
+      inst.contract_size || 1,
+      inst.tick_size ?? null,
+    ]
   );
   return result.lastInsertRowId;
+}
+
+export async function updateInstrument(
+  db: SQLiteDatabase,
+  id: number,
+  inst: Partial<Omit<Instrument, 'id' | 'created_at'>>
+): Promise<void> {
+  const keys = Object.keys(inst) as (keyof typeof inst)[];
+  if (keys.length === 0) return;
+  const setClauses = keys.map((k) => `${k} = ?`).join(', ');
+  const values = keys.map((k) => inst[k] ?? null);
+  await db.runAsync(`UPDATE instruments SET ${setClauses} WHERE id = ?`, [...values, id]);
+}
+
+export async function deleteInstrument(db: SQLiteDatabase, id: number): Promise<void> {
+  await db.runAsync('DELETE FROM instruments WHERE id = ?', [id]);
 }

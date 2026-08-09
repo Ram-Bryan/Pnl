@@ -41,9 +41,11 @@ export type StatsResult = {
   todayPnl: number;
   weekPnl: number;
   monthPnl: number;
+  allTimePnl: number;
   winRate: number;       // 0–100
   totalTrades: number;
-  profitFactor: number;
+  wins: number;
+  losses: number;
   expectancy: number;    // avg P&L per closed trade
   currentStreak: number; // positive = win streak, negative = loss streak
 };
@@ -88,6 +90,7 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   let todayPnl = 0;
   let weekPnl = 0;
   let monthPnl = 0;
+  let allTimePnl = 0;
   let grossProfit = 0;
   let grossLoss = 0;
   let wins = 0;
@@ -100,13 +103,15 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
     if (dateStr >= weekStartStr) weekPnl += pnl;
     if (dateStr.startsWith(monthStr)) monthPnl += pnl;
 
+    allTimePnl += pnl;
+
     if (pnl > 0) { grossProfit += pnl; wins++; }
     else if (pnl < 0) { grossLoss += Math.abs(pnl); }
   }
 
   const totalTrades = closed.length;
+  const losses = totalTrades - wins;
   const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
   const expectancy = totalTrades > 0 ? (grossProfit - grossLoss) / totalTrades : 0;
 
   // Current streak: walk trades newest-first, count consecutive W or L
@@ -124,5 +129,5 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
     }
   }
 
-  return { todayPnl, weekPnl, monthPnl, winRate, totalTrades, profitFactor, expectancy, currentStreak: streak };
+  return { todayPnl, weekPnl, monthPnl, allTimePnl, winRate, totalTrades, wins, losses, expectancy, currentStreak: streak };
 }

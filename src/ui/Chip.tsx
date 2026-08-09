@@ -1,5 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { Text, Pressable } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Chip({
   label,
@@ -10,16 +13,24 @@ export function Chip({
   selected: boolean;
   onPress: () => void;
 }) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       onPress={onPress}
-      className={`px-3 py-1.5 rounded-full border ${
-        selected ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-slate-200'
+      onPressIn={() => { scale.value = withSpring(0.93, { damping: 15 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 12 }); }}
+      style={animatedStyle}
+      className={`px-4 py-2.5 rounded-full border ${
+        selected ? 'bg-[#00E68A] border-[#00E68A]' : 'bg-[#13141a] border-[#1e1d2b]'
       }`}
     >
-      <Text className={`text-xs font-bold ${selected ? 'text-white' : 'text-slate-600'}`}>
+      <Text className={`text-sm font-bold ${selected ? 'text-[#13141a]' : 'text-white'}`}>
         {label}
       </Text>
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }

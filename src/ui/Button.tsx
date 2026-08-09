@@ -1,18 +1,21 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, ActivityIndicator, Pressable } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const VARIANTS = {
-  primary: 'bg-emerald-600',
-  outline: 'bg-white border border-slate-200',
+  primary: 'bg-neon-green',
+  outline: 'bg-dark-elevated border border-dark-border',
   ghost: 'bg-transparent',
-  danger: 'bg-rose-50 border border-rose-200',
+  danger: 'bg-dark-elevated border border-neon-red/30',
 };
 
 const TEXT_VARIANTS = {
-  primary: 'text-white',
-  outline: 'text-slate-800',
-  ghost: 'text-emerald-600',
-  danger: 'text-rose-500',
+  primary: 'text-dark-bg',
+  outline: 'text-neon-green',
+  ghost: 'text-neon-green',
+  danger: 'text-neon-red',
 };
 
 export function Button({
@@ -28,20 +31,27 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
+      onPressIn={() => { scale.value = withSpring(0.96, { damping: 15 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 12 }); }}
+      style={animatedStyle}
       className={`${VARIANTS[variant]} py-4 rounded-2xl items-center shadow-none ${
-        disabled && variant === 'primary' ? 'opacity-60' : ''
+        disabled && variant === 'primary' ? 'opacity-50' : ''
       }`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? 'white' : '#059669'} />
+        <ActivityIndicator color={variant === 'primary' ? '#0A0E1A' : '#00E68A'} />
       ) : (
         <Text className={`${TEXT_VARIANTS[variant]} font-black text-base`}>{title}</Text>
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }

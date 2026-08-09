@@ -1,10 +1,22 @@
 import React from 'react';
-import { View, ViewProps } from 'react-native';
+import { ViewProps } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = '',
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
   return (
-    <View className={`bg-white rounded-2xl border border-slate-100 shadow-sm ${className}`}>
+    <Animated.View
+      entering={FadeInDown.duration(400).delay(delay).springify().damping(18)}
+      className={`bg-dark-card rounded-2xl border border-dark-border shadow-sm ${className}`}
+    >
       {children}
-    </View>
+    </Animated.View>
   );
 }
