@@ -3,15 +3,18 @@ import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
+import { formatPnl } from '../lib/format';
 
 export function TradeRow({
   trade,
   onPress,
   index = 0,
+  accountType = 'standard',
 }: {
   trade: TradeWithInstrument;
   onPress: () => void;
   index?: number;
+  accountType?: 'standard' | 'cents';
 }) {
   const entryDate = new Date(trade.entry_at).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -20,15 +23,15 @@ export function TradeRow({
   });
 
   const isOpen = trade.status === 'open';
-  const pnl = isOpen ? 0 : computeTradePnl(trade);
+  const pnl = isOpen ? 0 : computeTradePnl(trade, accountType);
   const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
-  const pnlFormatted = isOpen ? '–' : `$${Math.abs(pnl).toFixed(2)}`;
+  const pnlFormatted = isOpen ? '–' : formatPnl(pnl, accountType);
 
   const directionColor = trade.direction === 'long' ? '#00E68A' : '#FF4D6A';
   const dirBg = trade.direction === 'long' ? 'rgba(0,230,138,0.1)' : 'rgba(255,77,106,0.1)';
 
-  // Investment = entry_price × price_mode_multiplier × size × contract_size
-  const multiplier = trade.price_mode === 'cents' ? 0.01 : 1;
+  // Investment = entry_price × size × contract_size (with cents scaling)
+  const multiplier = accountType === 'cents' ? 0.01 : 1;
   const invested = trade.entry_price * multiplier * trade.size * trade.contract_size;
 
   return (
@@ -64,7 +67,7 @@ export function TradeRow({
           </Text>
         </View>
 
-        {/* ROW 3: Date · Duration · Status */}
+        {/* ROW 3: Date · Status */}
         <View className="flex-row items-center gap-x-4">
           <View className="flex-row items-center gap-x-1">
             <Ionicons name="calendar-outline" size={12} color="#6b6880" />

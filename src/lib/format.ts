@@ -3,9 +3,19 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-export function formatPnl(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  return `$${moneyFormatter.format(Math.abs(rounded))}`;
+export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'standard'): string {
+  const isCents = accountType === 'cents';
+  // For cents account, shift raw USD value × 100 to get USC display value
+  const displayValue = isCents ? value * 100 : value;
+  const rounded = Math.round(displayValue * 100) / 100;
+  const v = Math.abs(rounded);
+  if (isCents) {
+    if (v >= 1000) return `${(v / 1000).toFixed(1)}k USC`;
+    return `${v.toFixed(2)} USC`;
+  } else {
+    if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+    return `$${moneyFormatter.format(v)}`;
+  }
 }
 
 export function formatMoney(value: number): string {

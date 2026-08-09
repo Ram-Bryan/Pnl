@@ -30,6 +30,7 @@ export type TradeWithInstrument = {
   // joined from instruments
   symbol: string;
   instrument_name: string | null;
+  quote_currency: string;
   price_mode: 'standard' | 'cents';
   contract_size: number;
   asset_class: AssetClass;
@@ -50,9 +51,11 @@ export type StatsResult = {
   currentStreak: number; // positive = win streak, negative = loss streak
 };
 
-// Compute gross P&L for a single trade, accounting for price_mode and contract_size.
+// Compute gross P&L for a single trade in USD, accounting for accountType and quote_currency.
+// - For a Cent account, the lot scale is 0.01x vs standard (1 lot = 1000 units not 100,000)
+// - For non-USD quote pairs (e.g. JPY in USDJPY), divides by entry_price to convert back to USD
 // Returns 0 for open trades (no exit_price).
-export function computeTradePnl(trade: TradeWithInstrument): number {
+export function computeTradePnl(trade: TradeWithInstrument, accountType: 'standard' | 'cents' = 'standard'): number {
   if (trade.exit_price == null) return 0;
 
   const priceDiff =
@@ -60,43 +63,45 @@ export function computeTradePnl(trade: TradeWithInstrument): number {
       ? trade.exit_price - trade.entry_price
       : trade.entry_price - trade.exit_price;
 
-  // cents mode: prices are in cents, so divide by 100 before multiplying
-  const multiplier = trade.price_mode === 'cents' ? 0.01 : 1;
+  const rawSize = trade.size * trade.contract_size;
+  // A cent account uses 0.01x lot scale vs standard
+  const adjustedSize = accountType === 'cents' ? rawSize * 0.01 : rawSize;
 
-  return priceDiff * multiplier * trade.size * trade.contract_size - trade.fees;
+  let rawPnl = priceDiff * adjustedSize;
+
+  // Convert quote currency to USD if needed (e.g. JPY -> USD: divide by exchange rate)
+  if (trade.quote_currency && trade.quote_currency !== 'USD' && trade.entry_price > 0) {
+    rawPnl /= trade.entry_price;
+  }
+
+  return rawPnl - trade.fees;
 }
 
 function toDateString(iso: string): string {
-  // ISO strings may be "2026-08-08T14:00:00" or "2026-08-08" — take first 10 chars
   return iso.slice(0, 10);
 }
 
 function getWeekStart(d: Date): string {
-  const day = d.getDay(); // 0=Sun, 1=Mon…
+  const day = d.getDay();
   const diff = d.getDate() - ((day + 6) % 7); // Monday as week start
   const monday = new Date(d);
   monday.setDate(diff);
   return monday.toISOString().slice(0, 10);
 }
 
-export function computeStats(trades: TradeWithInstrument[]): StatsResult {
+export function computeStats(trades: TradeWithInstrument[], accountType: 'standard' | 'cents' = 'standard'): StatsResult {
   const now = new Date();
   const todayStr = toDateString(now.toISOString());
   const weekStartStr = getWeekStart(now);
-  const monthStr = now.toISOString().slice(0, 7); // "YYYY-MM"
+  const monthStr = now.toISOString().slice(0, 7);
 
   const closed = trades.filter((t) => t.status === 'closed' && t.exit_price != null);
 
-  let todayPnl = 0;
-  let weekPnl = 0;
-  let monthPnl = 0;
-  let allTimePnl = 0;
-  let grossProfit = 0;
-  let grossLoss = 0;
-  let wins = 0;
+  let todayPnl = 0, weekPnl = 0, monthPnl = 0, allTimePnl = 0;
+  let grossProfit = 0, grossLoss = 0, wins = 0;
 
   for (const t of closed) {
-    const pnl = computeTradePnl(t);
+    const pnl = computeTradePnl(t, accountType);
     const dateStr = toDateString(t.exit_at ?? t.entry_at);
 
     if (dateStr === todayStr) todayPnl += pnl;
@@ -114,16 +119,15 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
   const expectancy = totalTrades > 0 ? (grossProfit - grossLoss) / totalTrades : 0;
 
-  // Current streak: walk trades newest-first, count consecutive W or L
   let streak = 0;
   if (closed.length > 0) {
     const sorted = [...closed].sort(
       (a, b) => (b.exit_at ?? b.entry_at).localeCompare(a.exit_at ?? a.entry_at)
     );
-    const firstPnl = computeTradePnl(sorted[0]);
+    const firstPnl = computeTradePnl(sorted[0], accountType);
     const sign = firstPnl >= 0 ? 1 : -1;
     for (const t of sorted) {
-      const pnl = computeTradePnl(t);
+      const pnl = computeTradePnl(t, accountType);
       if ((pnl >= 0 ? 1 : -1) !== sign) break;
       streak += sign;
     }

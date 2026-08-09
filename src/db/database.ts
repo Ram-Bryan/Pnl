@@ -568,3 +568,21 @@ export async function updateInstrument(
 export async function deleteInstrument(db: SQLiteDatabase, id: number): Promise<void> {
   await db.runAsync('DELETE FROM instruments WHERE id = ?', [id]);
 }
+
+// ─── Settings helpers ─────────────────────────────────────────────────────────
+
+export async function getAllSettings(db: SQLiteDatabase): Promise<Record<string, string>> {
+  const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM settings');
+  const result: Record<string, string> = {};
+  for (const row of rows) result[row.key] = row.value;
+  return result;
+}
+
+export async function getSetting(db: SQLiteDatabase, key: string): Promise<string | null> {
+  const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', [key]);
+  return row?.value ?? null;
+}
+
+export async function setSetting(db: SQLiteDatabase, key: string, value: string): Promise<void> {
+  await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+}

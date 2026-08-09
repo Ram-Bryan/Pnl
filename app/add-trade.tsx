@@ -14,6 +14,7 @@ import {
 import { formatPnl } from '../src/lib/format';
 import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { useAddTrade } from '../src/hooks/useAddTrade';
+import { useSettings } from '../src/hooks/useSettings';
 import { ENTRY_CONDITIONS, EXIT_CONDITIONS } from '../src/lib/constants';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -98,11 +99,12 @@ function validateDates(entryAt: string, exitAt: string, status: 'open' | 'closed
 
 // ─── PnL preview ─────────────────────────────────────────────────────────────
 
-function computeFormPnl({ entryFills, exitFills, direction, status, priceMode, contractSize, fees }: {
+function computeFormPnl({ entryFills, exitFills, direction, status, accountType, contractSize, fees, quoteCurrency }: {
   entryFills: { price: string; quantity: string }[];
   exitFills: { price: string; quantity: string }[];
   direction: 'long' | 'short'; status: 'open' | 'closed';
-  priceMode: 'standard' | 'cents'; contractSize: number; fees: number;
+  accountType: 'standard' | 'cents'; contractSize: number; fees: number;
+  quoteCurrency: string;
 }): number | null {
   if (status !== 'closed') return null;
   const ve = entryFills.filter(r => r.price && r.quantity).map(r => ({ price: parseFloat(r.price), quantity: parseFloat(r.quantity) }));
@@ -111,7 +113,12 @@ function computeFormPnl({ entryFills, exitFills, direction, status, priceMode, c
   const avgE = averageFillPrice(ve), sz = totalQuantity(ve), avgX = averageFillPrice(vx);
   if (!isFinite(avgE) || !isFinite(avgX) || !isFinite(sz)) return null;
   const diff = direction === 'long' ? avgX - avgE : avgE - avgX;
-  return diff * (priceMode === 'cents' ? 0.01 : 1) * sz * contractSize - fees;
+  const rawSize = sz * contractSize;
+  const adjustedSize = accountType === 'cents' ? rawSize * 0.01 : rawSize;
+  let rawPnl = diff * adjustedSize;
+  // Convert non-USD quote currency (e.g. JPY) back to USD by dividing by entry rate
+  if (quoteCurrency && quoteCurrency !== 'USD' && avgE > 0) rawPnl /= avgE;
+  return rawPnl - fees;
 }
 
 function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0]) {
@@ -127,9 +134,9 @@ function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0]) {
       <View>
         <Text style={{ color: c }} className="text-xs font-bold uppercase tracking-wider mb-1">Estimated PnL</Text>
         <Text style={{ color: c, fontVariant: ['tabular-nums'] }} className="text-2xl font-black">
-          {win ? '+' : ''}{formatPnl(pnl)}
+          {formatPnl(pnl, p.accountType)}
         </Text>
-        {p.priceMode === 'cents' && <Text className="text-[10px] text-[#6b6880] mt-0.5 uppercase">cents mode</Text>}
+        {p.accountType === 'cents' && <Text className="text-[10px] text-[#6b6880] mt-0.5 uppercase">Cents Account</Text>}
       </View>
       <Ionicons name={win ? 'trending-up' : 'trending-down'} size={32} color={c} />
     </Animated.View>
@@ -226,7 +233,8 @@ export default function AddTrade() {
   const parsedId = id ? parseInt(id, 10) : undefined;
   const tradeId = parsedId != null && !Number.isNaN(parsedId) ? parsedId : undefined;
 
-  const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading, ruleChecks } = useAddTrade({ tradeId });
+  const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading: addTradeLoading, ruleChecks } = useAddTrade({ tradeId });
+  const { settings, loading: settingsLoading } = useSettings();
 
   const [strategySheetOpen, setStrategySheetOpen] = useState(false);
   const [symbolQuery, setSymbolQuery] = useState('');
@@ -240,7 +248,7 @@ export default function AddTrade() {
   }, [fields.instrumentId, symbolFocused, pickers.instruments]);
 
   const selectedInstrument = pickers.instruments.find(i => i.id === fields.instrumentId);
-  const priceMode = selectedInstrument?.price_mode ?? 'standard';
+  const quoteCurrency = selectedInstrument?.quote_currency ?? 'USD';
   const contractSize = selectedInstrument?.contract_size ?? 1;
   const selectedStrategyName = fields.strategyId != null ? (pickers.strategies.find(s => s.id === fields.strategyId)?.name ?? null) : null;
   const filteredInstruments = symbolQuery.trim().length > 0
@@ -251,7 +259,7 @@ export default function AddTrade() {
   const slTpWarning = validateSlTp(fields.direction, fillRows.entry, fields.stopLoss, fields.takeProfit);
   const dateWarning = validateDates(fields.entryAt, fields.exitAt, fields.status);
 
-  if (loading) {
+  if (addTradeLoading || settingsLoading) {
     return <View className="flex-1 items-center justify-center bg-dark-bg"><ActivityIndicator size="large" color="#00E68A" /></View>;
   }
 
@@ -408,7 +416,8 @@ export default function AddTrade() {
               <PnlPreviewCard
                 entryFills={fillRows.entry} exitFills={fillRows.exit}
                 direction={fields.direction} status={fields.status}
-                priceMode={priceMode} contractSize={contractSize}
+                accountType={settings.accountType} contractSize={contractSize}
+                quoteCurrency={quoteCurrency}
                 fees={parseFloat(fields.fees) || 0}
               />
 

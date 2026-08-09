@@ -30,28 +30,7 @@ function SectionLabel({ label }: { label: string }) {
   return <Text className="text-white font-black text-lg mb-3">{label}</Text>;
 }
 
-function SegmentedMode({ value, onChange }: { value: string, onChange: (v: any) => void }) {
-  const options = [{ key: 'standard', label: 'Standard' }, { key: 'cents', label: 'Cents' }];
-  return (
-    <View className="flex-row bg-[#13141a] rounded-2xl p-1 gap-x-1 mb-8">
-      {options.map(o => {
-        const isSelected = value === o.key;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            className="flex-1 py-3 rounded-xl items-center"
-            style={{ backgroundColor: isSelected ? '#00E68A' : 'transparent' }}
-          >
-            <Text className="font-bold text-sm" style={{ color: isSelected ? '#13141a' : '#6b6880' }}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
+
 
 function SegmentedAsset({ value, onChange }: { value: string, onChange: (v: any) => void }) {
   return (
@@ -88,7 +67,7 @@ export default function SymbolsTab() {
   // Form state
   const [symbol, setSymbol] = useState('');
   const [assetClass, setAssetClass] = useState<AssetClass>('equity');
-  const [priceMode, setPriceMode] = useState<PriceMode>('standard');
+  const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [contractSize, setContractSize] = useState('1');
   const [saving, setSaving] = useState(false);
 
@@ -111,7 +90,7 @@ export default function SymbolsTab() {
     setEditingId(null);
     setSymbol('');
     setAssetClass('equity');
-    setPriceMode('standard');
+    setQuoteCurrency('USD');
     setContractSize('1');
     setSheetOpen(true);
   };
@@ -120,7 +99,7 @@ export default function SymbolsTab() {
     setEditingId(inst.id);
     setSymbol(inst.symbol);
     setAssetClass(inst.asset_class);
-    setPriceMode(inst.price_mode);
+    setQuoteCurrency(inst.quote_currency || 'USD');
     setContractSize(String(inst.contract_size));
     setSheetOpen(true);
   };
@@ -136,8 +115,8 @@ export default function SymbolsTab() {
         symbol: symbol.toUpperCase(),
         name: null,
         asset_class: assetClass,
-        quote_currency: 'USD',
-        price_mode: priceMode,
+        quote_currency: quoteCurrency.toUpperCase(),
+        price_mode: 'standard' as PriceMode, // Database default (now ignored, controlled by settings)
         contract_size: parseFloat(contractSize) || 1,
         tick_size: null,
       };
@@ -201,7 +180,7 @@ export default function SymbolsTab() {
                   <View className="flex-row items-center gap-x-2">
                     <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.asset_class}</Text>
                     <View className="w-1 h-1 rounded-full bg-[#1e1d2b]" />
-                    <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.price_mode}</Text>
+                    <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.quote_currency || 'USD'}</Text>
                   </View>
                 </View>
                 <View className="flex-row items-center">
@@ -227,12 +206,11 @@ export default function SymbolsTab() {
               value={assetClass} 
               onChange={(v) => { 
                 setAssetClass(v as AssetClass); 
-                if (v === 'fno') setPriceMode('cents'); 
               }} 
             />
 
-            <SectionLabel label="Price Mode" />
-            <SegmentedMode value={priceMode} onChange={setPriceMode} />
+            <SectionLabel label="Quote Currency" />
+            <FormInput value={quoteCurrency} onChange={setQuoteCurrency} placeholder="e.g. USD, JPY" />
             
             <SectionLabel label="Contract Size" />
             <FormInput value={contractSize} onChange={setContractSize} placeholder="1" keyboardType="numeric" />
