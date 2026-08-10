@@ -333,7 +333,7 @@ type TrendlineProps = {
 
 function formatPnlShort(v: number, accountType: 'standard' | 'cents' = 'standard'): string {
   const isCents = accountType === 'cents';
-  const displayVal = isCents ? v : v / 100;
+  const displayVal = isCents ? v * 100 : v;
   if (Math.abs(displayVal) >= 1000) return `${(displayVal / 1000).toFixed(1)}k`;
   return `${Math.round(displayVal)}`;
 }
@@ -637,11 +637,11 @@ export default function Dashboard() {
     const map: Record<string, number> = {};
     trades.forEach(t => {
       const d = (t.exit_at ?? t.entry_at).slice(0, 10);
-      const pnl = computeTradePnl(t);
+      const pnl = computeTradePnl(t, accountType);
       map[d] = (map[d] || 0) + pnl;
     });
     return map;
-  }, [trades]);
+  }, [trades, accountType]);
 
   const currentWeek = useMemo(() => getWeekDays(viewDate), [viewDate]);
   const currentMonth = useMemo(() => getMonthDays(viewDate), [viewDate]);
@@ -653,7 +653,7 @@ export default function Dashboard() {
       const todayTrades = [...trades]
         .filter(t => (t.exit_at ?? t.entry_at).slice(0, 10) === selectedDate)
         .reverse();
-      dataset = todayTrades.map(t => ({ pnl: computeTradePnl(t), timeStr: t.exit_at ?? t.entry_at }));
+      dataset = todayTrades.map(t => ({ pnl: computeTradePnl(t, accountType), timeStr: t.exit_at ?? t.entry_at }));
     } else if (period === 'week') {
       dataset = currentWeek.map(d => ({ pnl: dailyPnls[d] || 0, timeStr: d }));
     } else if (period === 'month') {
@@ -667,7 +667,7 @@ export default function Dashboard() {
             dayMap[day] = 0;
             allDays.push(day);
          }
-         dayMap[day] += computeTradePnl(t);
+         dayMap[day] += computeTradePnl(t, accountType);
       });
       dataset = allDays.map(d => ({ pnl: dayMap[d], timeStr: d }));
     }
@@ -738,7 +738,7 @@ export default function Dashboard() {
     }
 
     return { chartPoints: points, xTicks: ticks };
-  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls]);
+  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls, accountType]);
 
   // Trades visible in the bottom list: ALL trades for the current period
   const visibleTrades = useMemo(() => {
@@ -758,8 +758,8 @@ export default function Dashboard() {
 
   // PnL hero: dynamically computed from the currently visible trades
   const selectedPnl = useMemo(() => {
-    return visibleTrades.reduce((sum, t) => sum + computeTradePnl(t), 0);
-  }, [visibleTrades]);
+    return visibleTrades.reduce((sum, t) => sum + computeTradePnl(t, accountType), 0);
+  }, [visibleTrades, accountType]);
 
   const periodLabel = useMemo(() => {
     if (period === 'today') return "Today's P&L";

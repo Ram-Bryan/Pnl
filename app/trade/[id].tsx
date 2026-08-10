@@ -64,7 +64,7 @@ export default function TradeDetail() {
   const isOpen = trade.status === 'open';
   const assetClass = ASSET_CLASSES.find((c) => c.key === trade.asset_class);
   const styleLabel = TRADE_STYLES.find((s) => s.key === trade.trade_style)?.label;
-  const pnl = computeTradePnl(trade);
+  const pnl = computeTradePnl(trade, settings.accountType);
 
   function handleDelete() {
     Alert.alert('Delete Trade', 'Are you sure? This cannot be undone.', [

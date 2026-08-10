@@ -3,9 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
 import { TradeWithInstrument, StatsResult, computeStats } from '../stats/computeStats';
+import { AccountType } from '../stats/tradeMath';
 import { getAllSettings } from '../db/database';
-
-type AccountType = 'standard' | 'cents';
 
 type DashboardData = {
   stats: StatsResult;
@@ -69,7 +68,7 @@ export function useDashboard(): DashboardData {
 
       const at = (rawSettings['accountType'] as AccountType) || 'standard';
       setAccountType(at);
-      setStats(computeStats(tradesList));
+      setStats(computeStats(tradesList, at));
       setTrades(tradesList);
       setWeeklyGoal(goal ?? null);
     } catch (e) {
