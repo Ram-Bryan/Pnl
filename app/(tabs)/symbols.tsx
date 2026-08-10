@@ -211,9 +211,11 @@ export default function SymbolsTab() {
 
             <SectionLabel label="Quote Currency" />
             <FormInput value={quoteCurrency} onChange={setQuoteCurrency} placeholder="e.g. USD, JPY" />
+            <Text className="text-[#6b6880] text-xs mb-4 px-1">JPY for USDJPY — used to convert P&L to USD.</Text>
             
             <SectionLabel label="Contract Size" />
             <FormInput value={contractSize} onChange={setContractSize} placeholder="1" keyboardType="numeric" />
+            <Text className="text-[#6b6880] text-xs mb-4 px-1">Units per 1.0 lot. Forex: 100000.</Text>
 
             <View className="h-6" />
           </ScrollView>

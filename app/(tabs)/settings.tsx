@@ -51,7 +51,7 @@ export default function SettingsTab() {
             </View>
             <View className="bg-[#13141a] rounded-xl p-3 border border-[#1e1d2b] mt-2">
               <Text className="text-[#6b6880] text-[11px] font-medium leading-4">
-                When enabled, PnL is formatted in United States Cents (USC). The raw calculation stays the same — only the display scale changes. Perfect for Cent accounts where values are 100× standard.
+                When enabled, PnL is displayed in United States Cents (USC) and lots map to 100× smaller positions (MT5 cent-account sizing). Prices and fees are still entered as real values — the account type scales the calculation; only the display unit changes.
               </Text>
             </View>
           </View>
