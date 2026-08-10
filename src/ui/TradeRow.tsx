@@ -3,6 +3,7 @@ import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
+import { computeInvestedUsd } from '../stats/tradeMath';
 import { formatPnl } from '../lib/format';
 
 export function TradeRow({
@@ -23,16 +24,21 @@ export function TradeRow({
   });
 
   const isOpen = trade.status === 'open';
-  const pnl = isOpen ? 0 : computeTradePnl(trade);
+  const pnl = isOpen ? 0 : computeTradePnl(trade, accountType);
   const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
   const pnlFormatted = isOpen ? '–' : formatPnl(pnl, accountType);
 
   const directionColor = trade.direction === 'long' ? '#00E68A' : '#FF4D6A';
   const dirBg = trade.direction === 'long' ? 'rgba(0,230,138,0.1)' : 'rgba(255,77,106,0.1)';
 
-  // Investment = entry_price × size × contract_size (with cents scaling)
-  const multiplier = accountType === 'cents' ? 0.01 : 1;
-  const invested = trade.entry_price * multiplier * trade.size * trade.contract_size;
+  // Investment in USD, scaled for the account type (cent-account positions are 100x smaller)
+  const invested = computeInvestedUsd({
+    entryPrice: trade.entry_price,
+    lots: trade.size,
+    contractSize: trade.contract_size,
+    quoteCurrency: trade.quote_currency,
+    accountType,
+  });
 
   return (
     <Animated.View entering={FadeInDown.duration(400).delay(index * 50).springify().damping(18)}>
