@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inferQuoteCurrency } from './quoteCurrency';
+import { inferQuoteCurrency, resolveQuoteCurrency } from './quoteCurrency';
 
 describe('inferQuoteCurrency', () => {
   it('infers the quote leg of a 6-letter currency pair', () => {
@@ -22,5 +22,23 @@ describe('inferQuoteCurrency', () => {
   });
   it('returns null when the suffix is not a known currency', () => {
     expect(inferQuoteCurrency('ABCXYZ')).toBeNull();
+  });
+});
+
+describe('resolveQuoteCurrency', () => {
+  it('corrects the generic USD default when the symbol implies a different quote', () => {
+    expect(resolveQuoteCurrency('USDJPY', 'USD')).toBe('JPY');
+    expect(resolveQuoteCurrency('EURGBP', 'USD')).toBe('GBP');
+  });
+  it('keeps USD for genuinely USD-quoted pairs and non-pair symbols', () => {
+    expect(resolveQuoteCurrency('EURUSD', 'USD')).toBe('USD');
+    expect(resolveQuoteCurrency('XAUUSD', 'USD')).toBe('USD');
+    expect(resolveQuoteCurrency('AAPL', 'USD')).toBe('USD');
+  });
+  it('respects an explicitly stored non-default quote', () => {
+    expect(resolveQuoteCurrency('USDJPY', 'JPY')).toBe('JPY');
+  });
+  it('falls back to USD when nothing is stored', () => {
+    expect(resolveQuoteCurrency('AAPL', '')).toBe('USD');
   });
 });

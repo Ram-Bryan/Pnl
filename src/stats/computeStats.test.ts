@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStats } from './computeStats';
+import { computeStats, computeTradePnl } from './computeStats';
 import type { TradeWithInstrument } from './computeStats';
 
 function makeTrade(overrides: Partial<TradeWithInstrument>): TradeWithInstrument {
@@ -37,5 +37,36 @@ describe('computeStats', () => {
     expect(stats.losses).toBe(2);
     expect(stats.winRate).toBeCloseTo(33.33, 1);
     expect(stats.currentStreak).toBe(-2);
+  });
+});
+
+describe('computeTradePnl', () => {
+  it('converts JPY to USD even when the stored quote is the generic USD default (short USDJPY 0.01 lot, cents)', () => {
+    // MT5: -0.16 JPY / 157.536 = -0.0010155 USD -> -0.10 USC
+    const trade = makeTrade({
+      symbol: 'USDJPY',
+      quote_currency: 'USD',
+      direction: 'short',
+      entry_price: 157.536,
+      exit_price: 157.552,
+      size: 0.01,
+      contract_size: 100000,
+    });
+    const pnl = computeTradePnl(trade, 'cents');
+    expect(pnl).toBeCloseTo(-0.0010155, 6);
+    expect(pnl * 100).toBeCloseTo(-0.10, 2);
+  });
+
+  it('respects an explicitly stored non-default quote currency', () => {
+    const trade = makeTrade({
+      symbol: 'USDJPY',
+      quote_currency: 'JPY',
+      direction: 'short',
+      entry_price: 157.536,
+      exit_price: 157.552,
+      size: 0.01,
+      contract_size: 100000,
+    });
+    expect(computeTradePnl(trade, 'cents')).toBeCloseTo(-0.0010155, 6);
   });
 });

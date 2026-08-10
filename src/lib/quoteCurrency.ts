@@ -13,3 +13,13 @@ export function inferQuoteCurrency(symbol: string): string | null {
   const quote = s.slice(-3);
   return CURRENCY_CODES.includes(quote) ? quote : null;
 }
+
+// The DB defaults new symbols to 'USD' quote currency, which silently breaks P&L
+// conversion for currency pairs (e.g. a USDJPY symbol stored as 'USD' skips the
+// JPY->USD division). When the stored value is still that generic default but the
+// symbol encodes a different quote, use the symbol's.
+export function resolveQuoteCurrency(symbol: string, storedQuote: string): string {
+  const quote = storedQuote.trim().toUpperCase();
+  if (quote !== 'USD') return quote || 'USD';
+  return inferQuoteCurrency(symbol) ?? 'USD';
+}

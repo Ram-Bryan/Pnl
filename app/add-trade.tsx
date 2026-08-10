@@ -14,6 +14,7 @@ import {
 import { formatPnl } from '../src/lib/format';
 import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
+import { resolveQuoteCurrency } from '../src/lib/quoteCurrency';
 import { useAddTrade } from '../src/hooks/useAddTrade';
 import { useSettings } from '../src/hooks/useSettings';
 import { ENTRY_CONDITIONS, EXIT_CONDITIONS } from '../src/lib/constants';
@@ -253,7 +254,7 @@ export default function AddTrade() {
   }, [fields.instrumentId, symbolFocused, pickers.instruments]);
 
   const selectedInstrument = pickers.instruments.find(i => i.id === fields.instrumentId);
-  const quoteCurrency = selectedInstrument?.quote_currency ?? 'USD';
+  const quoteCurrency = resolveQuoteCurrency(selectedInstrument?.symbol ?? '', selectedInstrument?.quote_currency ?? 'USD');
   const contractSize = selectedInstrument?.contract_size ?? 1;
   const selectedStrategyName = fields.strategyId != null ? (pickers.strategies.find(s => s.id === fields.strategyId)?.name ?? null) : null;
   const filteredInstruments = symbolQuery.trim().length > 0

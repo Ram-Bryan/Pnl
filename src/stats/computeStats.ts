@@ -1,5 +1,6 @@
 import { AssetClass, TradeStyle } from '../db/schema';
 import { AccountType, computeTradePnlInUsd } from './tradeMath';
+import { resolveQuoteCurrency } from '../lib/quoteCurrency';
 
 // Pure stats engine — no SQLite dependency.
 // P&L is ALWAYS computed here, never stored in the DB.
@@ -65,7 +66,7 @@ export function computeTradePnl(trade: TradeWithInstrument, accountType: Account
     exitPrice: trade.exit_price,
     lots: trade.size,
     contractSize: trade.contract_size,
-    quoteCurrency: trade.quote_currency,
+    quoteCurrency: resolveQuoteCurrency(trade.symbol, trade.quote_currency),
     fees: trade.fees,
     accountType,
   });
