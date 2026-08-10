@@ -1,6 +1,6 @@
 # Cent-Account Calculation Precision — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make every P&L calculation account for cents — MT5-equivalent math (lot scaling ÷100 on cent accounts, JPY→USD conversion, fees in display unit) with display-only scaling for USD/USC.
 
@@ -32,7 +32,7 @@
   - `export function computeTradePnlInUsd(input: { direction: 'long' | 'short'; entryPrice: number; exitPrice: number; lots: number; contractSize: number; quoteCurrency: string; fees: number; accountType: AccountType }): number`
   - `export function computeInvestedUsd(input: { entryPrice: number; lots: number; contractSize: number; quoteCurrency: string; accountType: AccountType }): number`
 
-- [ ] **Step 1: Write the failing test** — create `src/stats/tradeMath.test.ts`
+- [x] **Step 1: Write the failing test** — create `src/stats/tradeMath.test.ts`
 
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -91,12 +91,12 @@ describe('computeInvestedUsd', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec vitest run src/stats/tradeMath.test.ts`
 Expected: FAIL — module `./tradeMath` cannot be found.
 
-- [ ] **Step 3: Write the implementation** — create `src/stats/tradeMath.ts`
+- [x] **Step 3: Write the implementation** — create `src/stats/tradeMath.ts`
 
 ```ts
 // Pure money math for P&L, shared by computeStats and the add-trade preview.
@@ -147,12 +147,12 @@ export function computeInvestedUsd(input: {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm exec vitest run src/stats/tradeMath.test.ts`
 Expected: PASS (all 8 assertions).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/stats/tradeMath.ts src/stats/tradeMath.test.ts
@@ -171,7 +171,7 @@ git commit -m "feat: add account-aware USD money math (tradeMath)"
 - Consumes: `AccountType`, `computeTradePnlInUsd` from `src/stats/tradeMath` (Task 1).
 - Produces (used by Tasks 4, 6): `computeTradePnl(trade: TradeWithInstrument, accountType: AccountType = 'standard'): number` and `computeStats(trades: TradeWithInstrument[], accountType: AccountType = 'standard'): StatsResult`.
 
-- [ ] **Step 1: Write the failing test** — create `src/stats/computeStats.test.ts`
+- [x] **Step 1: Write the failing test** — create `src/stats/computeStats.test.ts`
 
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -216,12 +216,12 @@ describe('computeStats', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec vitest run src/stats/computeStats.test.ts`
 Expected: FAIL — `computeStats(trades, 'standard')` takes 1 argument (signature has no `accountType`).
 
-- [ ] **Step 3: Modify `src/stats/computeStats.ts`**
+- [x] **Step 3: Modify `src/stats/computeStats.ts`**
 
 3a. Add the import (top of file, after the `../db/schema` import):
 
@@ -261,12 +261,12 @@ const firstPnl = computeTradePnl(sorted[0], accountType);   // streak
 const pnl = computeTradePnl(t, accountType);       // streak loop
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm exec vitest run src/stats/computeStats.test.ts src/stats/tradeMath.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/stats/computeStats.ts src/stats/computeStats.test.ts
@@ -284,7 +284,7 @@ git commit -m "feat: make computeStats/computeTradePnl account-aware"
 **Interfaces:**
 - Produces (used by Tasks 4, 6, 7): `formatPnl(value: number, accountType: 'standard' | 'cents' = 'standard'): string` where `value` is **real USD** — standard displays `$X.XX`, cents displays `(value × 100)` as `X.XX USC`.
 
-- [ ] **Step 1: Update the test to the new convention** — rewrite the `formatPnl` describe block in `src/lib/format.test.ts`
+- [x] **Step 1: Update the test to the new convention** — rewrite the `formatPnl` describe block in `src/lib/format.test.ts`
 
 ```ts
 describe('formatPnl', () => {
@@ -310,12 +310,12 @@ describe('formatPnl', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec vitest run src/lib/format.test.ts`
 Expected: FAIL — current `formatPnl(1.4)` returns `$0.01`, not `$1.40`.
 
-- [ ] **Step 3: Modify `src/lib/format.ts`** — replace the `formatPnl` function body:
+- [x] **Step 3: Modify `src/lib/format.ts`** — replace the `formatPnl` function body:
 
 ```ts
 export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'standard'): string {
@@ -333,12 +333,12 @@ export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'st
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm exec vitest run src/lib/format.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/format.ts src/lib/format.test.ts
@@ -357,7 +357,7 @@ git commit -m "feat: formatPnl treats input as real USD, scales display per acco
 **Interfaces:**
 - Consumes: `computeTradePnl(trade, accountType)` and `computeStats(trades, accountType)` from `src/stats/computeStats.ts` (Task 2).
 
-- [ ] **Step 1: Update `src/hooks/useDashboard.ts`**
+- [x] **Step 1: Update `src/hooks/useDashboard.ts`**
 
 Find `setStats(computeStats(tradesList));` (line 72) and change to:
 
@@ -367,7 +367,7 @@ setStats(computeStats(tradesList, at));
 
 (`at` is the `AccountType` already resolved on line 70 from the settings.)
 
-- [ ] **Step 2: Update `app/(tabs)/index.tsx` — `formatPnlShort`**
+- [x] **Step 2: Update `app/(tabs)/index.tsx` — `formatPnlShort`**
 
 Replace the `formatPnlShort` body (lines 334-339). The `const displayVal` line changes from `isCents ? v : v / 100` to:
 
@@ -375,7 +375,7 @@ Replace the `formatPnlShort` body (lines 334-339). The `const displayVal` line c
   const displayVal = isCents ? v * 100 : v;
 ```
 
-- [ ] **Step 3: Update `app/(tabs)/index.tsx` — the three P&L memos**
+- [x] **Step 3: Update `app/(tabs)/index.tsx` — the three P&L memos**
 
 3a. `dailyPnls` (line 640): `const pnl = computeTradePnl(t);` → `const pnl = computeTradePnl(t, accountType);` and change the memo deps from `[trades]` to `[trades, accountType]`.
 
@@ -383,16 +383,16 @@ Replace the `formatPnlShort` body (lines 334-339). The `const displayVal` line c
 
 3c. `selectedPnl` (line 761): `computeTradePnl(t)` → `computeTradePnl(t, accountType)`; change deps from `[visibleTrades]` to `[visibleTrades, accountType]`.
 
-- [ ] **Step 4: Update `app/trade/[id].tsx`**
+- [x] **Step 4: Update `app/trade/[id].tsx`**
 
 Line 67: `const pnl = computeTradePnl(trade);` → `const pnl = computeTradePnl(trade, settings.accountType);`
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run: `pnpm typecheck` and `pnpm test`
 Expected: both pass (typecheck clean, all unit tests green).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hooks/useDashboard.ts app/\(tabs\)/index.tsx app/trade/\[id\].tsx
@@ -410,7 +410,7 @@ git commit -m "feat: thread account type through dashboard and trade detail P&L"
 - Consumes: `computeInvestedUsd` from `src/stats/tradeMath` (Task 1).
 - Consumes: `AccountType` prop already passed as `accountType` to `TradeRow`.
 
-- [ ] **Step 1: Update imports in `src/ui/TradeRow.tsx`**
+- [x] **Step 1: Update imports in `src/ui/TradeRow.tsx`**
 
 Add after the existing `formatPnl` import:
 
@@ -418,7 +418,7 @@ Add after the existing `formatPnl` import:
 import { computeInvestedUsd } from '../stats/tradeMath';
 ```
 
-- [ ] **Step 2: Replace the invested computation**
+- [x] **Step 2: Replace the invested computation**
 
 Remove the `multiplier` line and the inline multiplication. Replace lines 33-35 with:
 
@@ -433,12 +433,12 @@ Remove the `multiplier` line and the inline multiplication. Replace lines 33-35 
   });
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `pnpm typecheck` and `pnpm test`
 Expected: both pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/ui/TradeRow.tsx
@@ -456,7 +456,7 @@ git commit -m "fix: compute invested via account-aware USD math"
 - Consumes: `AccountType` from `src/stats/tradeMath`; `computeTradePnl(trade, accountType)` from `src/stats/computeStats`.
 - The filtered memo compares USD P&L against the user's typed filter, converted to USD (`cents → ×0.01`).
 
-- [ ] **Step 1: Add the `AccountType` import**
+- [x] **Step 1: Add the `AccountType` import**
 
 After `import { computeTradePnl } from '../../src/stats/computeStats';`:
 
@@ -464,7 +464,7 @@ After `import { computeTradePnl } from '../../src/stats/computeStats';`:
 import { AccountType } from '../../src/stats/tradeMath';
 ```
 
-- [ ] **Step 2: Extend `FilterSheet` with `accountType`**
+- [x] **Step 2: Extend `FilterSheet` with `accountType`**
 
 In the `FilterSheet` props type (lines 196-203) add:
 
@@ -474,7 +474,7 @@ In the `FilterSheet` props type (lines 196-203) add:
 
 and destructure `accountType` from the params (line 195).
 
-- [ ] **Step 3: Unit-label the P&L filter UI**
+- [x] **Step 3: Unit-label the P&L filter UI**
 
 Replace the P&L filter block (lines 298-306) with:
 
@@ -490,7 +490,7 @@ Replace the P&L filter block (lines 298-306) with:
         </View>
 ```
 
-- [ ] **Step 4: Convert the filter values to USD in the filtering logic**
+- [x] **Step 4: Convert the filter values to USD in the filtering logic**
 
 In the `filtered` memo (lines 412-414), replace:
 
@@ -511,7 +511,7 @@ with:
 
 and change the memo deps (line 431) from `[trades, search, applied]` to `[trades, search, applied, settings.accountType]`.
 
-- [ ] **Step 5: Pass `accountType` into `FilterSheet`**
+- [x] **Step 5: Pass `accountType` into `FilterSheet`**
 
 In the render (line 468), add the prop:
 
@@ -527,12 +527,12 @@ In the render (line 468), add the prop:
       />
 ```
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 Run: `pnpm typecheck` and `pnpm test`
 Expected: both pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "app/(tabs)/trades.tsx"
@@ -550,7 +550,7 @@ git commit -m "feat: unit-aware P&L filter on trade list"
 - Consumes: `computeTradePnlInUsd`, `AccountType` from `../src/stats/tradeMath`.
 - `computeFormPnl` now requires `accountType` in its params and returns real USD; the preview must display the same number the saved trade will show.
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 After `import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';`:
 
@@ -558,7 +558,7 @@ After `import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFill
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
 ```
 
-- [ ] **Step 2: Rewrite `computeFormPnl`**
+- [x] **Step 2: Rewrite `computeFormPnl`**
 
 Replace the whole function (lines 102-121). The non-USD conversion block (`rawPnl /= avgE`) is no longer needed — it lives in `computeTradePnlInUsd`:
 
@@ -591,7 +591,7 @@ function computeFormPnl({ entryFills, exitFills, direction, status, contractSize
 
 (`PnlPreviewCard` already passes `accountType` through its spread `p`, and the call site at line 415 already provides `accountType={settings.accountType}` — no further wiring needed.)
 
-- [ ] **Step 3: Replace the misleading price-mode badge**
+- [x] **Step 3: Replace the misleading price-mode badge**
 
 Replace the badge text at line 329:
 
@@ -605,12 +605,12 @@ with the real drivers — quote currency and contract size:
                     {selectedInstrument.asset_class.toUpperCase()} · {quoteCurrency.toUpperCase()}{contractSize !== 1 ? ` · x${contractSize}` : ''}
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `pnpm typecheck` and `pnpm test`
 Expected: both pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/add-trade.tsx
@@ -625,7 +625,7 @@ git commit -m "feat: add-trade preview uses shared account-aware P&L math"
 - Modify: `app/(tabs)/settings.tsx` (info text 53-55)
 - Modify: `app/(tabs)/symbols.tsx` (Quote Currency + Contract Size inputs, around lines 212-216)
 
-- [ ] **Step 1: Update `app/(tabs)/settings.tsx`**
+- [x] **Step 1: Update `app/(tabs)/settings.tsx`**
 
 Replace the info text (lines 53-55) with accurate copy:
 
@@ -635,7 +635,7 @@ Replace the info text (lines 53-55) with accurate copy:
               </Text>
 ```
 
-- [ ] **Step 2: Add a hint under Quote Currency in `app/(tabs)/symbols.tsx`**
+- [x] **Step 2: Add a hint under Quote Currency in `app/(tabs)/symbols.tsx`**
 
 After the Quote Currency `FormInput` (line 213), add:
 
@@ -643,7 +643,7 @@ After the Quote Currency `FormInput` (line 213), add:
             <Text className="text-[#6b6880] text-xs -mt-6 mb-8 px-1">JPY for USDJPY — used to convert P&L to USD.</Text>
 ```
 
-- [ ] **Step 3: Add a hint under Contract Size in `app/(tabs)/symbols.tsx`**
+- [x] **Step 3: Add a hint under Contract Size in `app/(tabs)/symbols.tsx`**
 
 After the Contract Size `FormInput` (line 216), add:
 
@@ -651,12 +651,12 @@ After the Contract Size `FormInput` (line 216), add:
             <Text className="text-[#6b6880] text-xs -mt-6 mb-8 px-1">Units per 1.0 lot. Forex: 100000.</Text>
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `pnpm typecheck` and `pnpm test`
 Expected: both pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add "app/(tabs)/settings.tsx" "app/(tabs)/symbols.tsx"
@@ -669,16 +669,16 @@ git commit -m "docs: clarify cent-account behavior and symbol fields"
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Run the full test suite**
+- [x] **Step 1: Run the full test suite**
 
 Run: `pnpm test`
 Expected: all Vitest suites pass (tradeMath, computeStats, format, aggregateFills, constants, assetClass).
 
-- [ ] **Step 2: Run the strict typecheck**
+- [x] **Step 2: Run the strict typecheck**
 
 Run: `pnpm typecheck`
 Expected: clean, no errors.
 
-- [ ] **Step 3: Sanity-check the formatted outputs**
+- [x] **Step 3: Sanity-check the formatted outputs**
 
 Run: `pnpm exec vitest run src/stats/tradeMath.test.ts src/lib/format.test.ts -r verbose` and confirm the USDJPY cent case (`0.10 USC`) and its standard twin (`$0.10`) are covered and green.
