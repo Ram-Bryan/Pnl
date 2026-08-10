@@ -13,6 +13,7 @@ import {
 } from '../src/ui';
 import { formatPnl } from '../src/lib/format';
 import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
+import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
 import { useAddTrade } from '../src/hooks/useAddTrade';
 import { useSettings } from '../src/hooks/useSettings';
 import { ENTRY_CONDITIONS, EXIT_CONDITIONS } from '../src/lib/constants';
@@ -99,12 +100,13 @@ function validateDates(entryAt: string, exitAt: string, status: 'open' | 'closed
 
 // ─── PnL preview ─────────────────────────────────────────────────────────────
 
-function computeFormPnl({ entryFills, exitFills, direction, status, contractSize, fees, quoteCurrency }: {
+function computeFormPnl({ entryFills, exitFills, direction, status, contractSize, fees, quoteCurrency, accountType }: {
   entryFills: { price: string; quantity: string }[];
   exitFills: { price: string; quantity: string }[];
   direction: 'long' | 'short'; status: 'open' | 'closed';
   contractSize: number; fees: number;
   quoteCurrency: string;
+  accountType: AccountType;
 }): number | null {
   if (status !== 'closed') return null;
   const ve = entryFills.filter(r => r.price && r.quantity).map(r => ({ price: parseFloat(r.price), quantity: parseFloat(r.quantity) }));
@@ -112,15 +114,19 @@ function computeFormPnl({ entryFills, exitFills, direction, status, contractSize
   if (!ve.length || !vx.length) return null;
   const avgE = averageFillPrice(ve), sz = totalQuantity(ve), avgX = averageFillPrice(vx);
   if (!isFinite(avgE) || !isFinite(avgX) || !isFinite(sz)) return null;
-  const diff = direction === 'long' ? avgX - avgE : avgE - avgX;
-  const rawSize = sz * contractSize;
-  let rawPnl = diff * rawSize;
-  // Convert non-USD quote currency (e.g. JPY) back to USD by dividing by entry rate
-  if (quoteCurrency && quoteCurrency !== 'USD' && avgE > 0) rawPnl /= avgE;
-  return rawPnl - fees;
+  return computeTradePnlInUsd({
+    direction,
+    entryPrice: avgE,
+    exitPrice: avgX,
+    lots: sz,
+    contractSize,
+    quoteCurrency,
+    fees,
+    accountType,
+  });
 }
 
-function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType: 'standard' | 'cents' }) {
+function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType: AccountType }) {
   const pnl = computeFormPnl(p);
   if (pnl === null) return null;
   const win = pnl >= 0;
@@ -326,7 +332,7 @@ export default function AddTrade() {
                 <Animated.View entering={FadeInDown.duration(300)} className="flex-row items-center gap-2 mt-2 px-1">
                   <Ionicons name="checkmark-circle" size={14} color="#00E68A" />
                   <Text className="text-xs text-[#00E68A] font-semibold">
-                    {selectedInstrument.asset_class.toUpperCase()} · {selectedInstrument.price_mode === 'cents' ? 'Cents mode' : 'Standard'}{contractSize !== 1 ? ` · x${contractSize}` : ''}
+                    {selectedInstrument.asset_class.toUpperCase()} · {quoteCurrency.toUpperCase()}{contractSize !== 1 ? ` · x${contractSize}` : ''}
                   </Text>
                 </Animated.View>
               )}
