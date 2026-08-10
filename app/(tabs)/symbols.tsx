@@ -9,6 +9,7 @@ import { EmptyState, Sheet } from '../../src/ui';
 import { Instrument, AssetClass, PriceMode } from '../../src/db/schema';
 import { getInstruments, insertInstrument, deleteInstrument, updateInstrument } from '../../src/db/database';
 import { ASSET_CLASSES } from '../../src/lib/constants';
+import { inferQuoteCurrency } from '../../src/lib/quoteCurrency';
 
 function FormInput({ value, onChange, placeholder, keyboardType="default" }: any) {
   return (
@@ -111,11 +112,15 @@ export default function SymbolsTab() {
     }
     setSaving(true);
     try {
+      // Currency pairs (USDJPY, EURGBP, ...) carry their quote currency in the symbol;
+      // auto-fix it when the field still holds the generic 'USD' default so P&L converts correctly.
+      const inferredQuote = inferQuoteCurrency(symbol);
+      const quote = inferredQuote && quoteCurrency === 'USD' ? inferredQuote : quoteCurrency.toUpperCase();
       const payload = {
         symbol: symbol.toUpperCase(),
         name: null,
         asset_class: assetClass,
-        quote_currency: quoteCurrency.toUpperCase(),
+        quote_currency: quote,
         price_mode: 'standard' as PriceMode, // Database default (now ignored, controlled by settings)
         contract_size: parseFloat(contractSize) || 1,
         tick_size: null,
@@ -211,7 +216,7 @@ export default function SymbolsTab() {
 
             <SectionLabel label="Quote Currency" />
             <FormInput value={quoteCurrency} onChange={setQuoteCurrency} placeholder="e.g. USD, JPY" />
-            <Text className="text-[#6b6880] text-xs mb-4 px-1">JPY for USDJPY — used to convert P&L to USD.</Text>
+            <Text className="text-[#6b6880] text-xs mb-4 px-1">JPY for USDJPY — used to convert P&L to USD. Auto-detected from the symbol.</Text>
             
             <SectionLabel label="Contract Size" />
             <FormInput value={contractSize} onChange={setContractSize} placeholder="1" keyboardType="numeric" />

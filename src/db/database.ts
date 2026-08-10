@@ -317,6 +317,7 @@ export async function getTradeById(
     SELECT t.*,
            i.symbol,
            i.name   AS instrument_name,
+           i.quote_currency,
            i.price_mode,
            i.contract_size,
            i.asset_class,
