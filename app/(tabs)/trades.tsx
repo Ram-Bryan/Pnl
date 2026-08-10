@@ -13,6 +13,7 @@ import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useSettings } from '../../src/hooks/useSettings';
 import { computeTradePnl } from '../../src/stats/computeStats';
+import { AccountType } from '../../src/stats/tradeMath';
 import { ASSET_CLASSES, TRADE_STYLES, AssetClassKey, TradeStyle } from '../../src/lib/constants';
 
 type DirectionFilter = 'all' | 'long' | 'short';
@@ -193,7 +194,7 @@ function SectionLabel({ label }: { label: string }) {
 
 // ─── Filter Sheet ────────────────────────────────────────────────────────────
 function FilterSheet({
-  visible, onClose, draft, setDraft, onApply, onClear,
+  visible, onClose, draft, setDraft, onApply, onClear, accountType,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -201,6 +202,7 @@ function FilterSheet({
   setDraft: (f: FilterState) => void;
   onApply: () => void;
   onClear: () => void;
+  accountType: AccountType;
 }) {
   const set = useCallback(<K extends keyof FilterState>(key: K, val: FilterState[K]) => {
     setDraft({ ...draft, [key]: val });
@@ -297,11 +299,11 @@ function FilterSheet({
 
         {/* PnL */}
         <View className="mb-8">
-          <SectionLabel label="Profit & Loss" />
+          <SectionLabel label={accountType === 'cents' ? 'Profit & Loss (USC)' : 'Profit & Loss'} />
           <RangeInput
             minVal={draft.pnlMin} maxVal={draft.pnlMax}
             onMinChange={v => set('pnlMin', v)} onMaxChange={v => set('pnlMax', v)}
-            prefix="$"
+            prefix={accountType === 'cents' ? '' : '$'}
           />
         </View>
 
@@ -409,9 +411,10 @@ export default function Trades() {
       if (applied.sizeMin && size < parseFloat(applied.sizeMin)) return false;
       if (applied.sizeMax && size > parseFloat(applied.sizeMax)) return false;
 
-      const pnl = computeTradePnl(t);
-      if (applied.pnlMin && pnl < parseFloat(applied.pnlMin)) return false;
-      if (applied.pnlMax && pnl > parseFloat(applied.pnlMax)) return false;
+      const pnl = computeTradePnl(t, settings.accountType);
+      const pnlUnit = settings.accountType === 'cents' ? 0.01 : 1;
+      if (applied.pnlMin && pnl < parseFloat(applied.pnlMin) * pnlUnit) return false;
+      if (applied.pnlMax && pnl > parseFloat(applied.pnlMax) * pnlUnit) return false;
 
       const entryDate = t.entry_at;
       if (applied.entryDateMin && entryDate < applied.entryDateMin) return false;
@@ -428,7 +431,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, search, applied]);
+  }, [trades, search, applied, settings.accountType]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -472,6 +475,7 @@ export default function Trades() {
         setDraft={setDraft}
         onApply={handleApply}
         onClear={handleClear}
+        accountType={settings.accountType}
       />
 
       <Animated.View entering={FadeIn.duration(400)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
