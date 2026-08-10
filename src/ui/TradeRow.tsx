@@ -23,7 +23,7 @@ export function TradeRow({
   });
 
   const isOpen = trade.status === 'open';
-  const pnl = isOpen ? 0 : computeTradePnl(trade, accountType);
+  const pnl = isOpen ? 0 : computeTradePnl(trade);
   const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
   const pnlFormatted = isOpen ? '–' : formatPnl(pnl, accountType);
 

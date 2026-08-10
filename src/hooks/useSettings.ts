@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getAllSettings, setSetting } from '../db/database';
 
@@ -37,6 +38,8 @@ export function useSettings(): UseSettingsResult {
   }, [db]);
 
   useEffect(() => { load(); }, [load]);
+  // Reload when navigating back to any screen that uses settings (e.g. after changing in Settings tab)
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const updateSetting = useCallback(async <K extends keyof Settings>(key: K, value: Settings[K]) => {
     await setSetting(db, key, String(value));

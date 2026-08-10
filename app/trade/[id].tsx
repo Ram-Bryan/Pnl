@@ -14,6 +14,7 @@ import { averageFillPrice, totalQuantity } from '../../src/lib/aggregateFills';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { deleteTrade } from '../../src/db/database';
 import { useTradeDetail } from '../../src/hooks/useTradeDetail';
+import { useSettings } from '../../src/hooks/useSettings';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -31,6 +32,7 @@ export default function TradeDetail() {
   const db = useSQLiteContext();
   const parsedId = parseInt(id, 10);
   const { data, error, loading } = useTradeDetail(Number.isNaN(parsedId) ? 0 : parsedId);
+  const { settings } = useSettings();
 
   if (loading) {
     return (
@@ -96,7 +98,7 @@ export default function TradeDetail() {
             <Text className="text-4xl font-black text-neon-amber mb-5" style={{ textShadowColor: 'rgba(255,181,71,0.4)', textShadowRadius: 16 }}>Open</Text>
           ) : (
             <View className="mb-5">
-              <PnlText value={pnl} size="text-5xl" glow />
+              <PnlText value={pnl} size="text-5xl" glow accountType={settings.accountType} />
             </View>
           )}
           <View className="flex-row gap-2">

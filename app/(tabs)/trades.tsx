@@ -11,6 +11,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { EmptyState, Fab, TradeRow, Segmented } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
+import { useSettings } from '../../src/hooks/useSettings';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { ASSET_CLASSES, TRADE_STYLES, AssetClassKey, TradeStyle } from '../../src/lib/constants';
 
@@ -352,6 +353,7 @@ export default function Trades() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { trades, loading, refetch } = useTrades();
+  const { settings } = useSettings();
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -560,6 +562,7 @@ export default function Trades() {
             <TradeRow
               trade={item}
               index={index}
+              accountType={settings.accountType}
               onPress={() => router.push(`/trade/${item.id}`)}
             />
           )}

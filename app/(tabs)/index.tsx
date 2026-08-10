@@ -159,9 +159,9 @@ const MonthPicker = ({ visible, onClose, viewDate, onSelectMonth }: any) => {
   );
 };
 
-// ─── PnL Hero Card ────────────────────────────────────────────────────────────
-const PnlHeroCard = ({ pnl, label }: { pnl: number; label: string }) => {
-  const isZero = pnl === 0;
+// ─── Pnl Hero Card ────────────────────────────────────────────────────────────
+const PnlHeroCard = ({ pnl, label, accountType }: { pnl: number; label: string; accountType: 'standard' | 'cents' }) => {
+  const isZero = pnl === 0;8
   const isPositive = pnl > 0;
   const gradientColors = isZero
     ? (['rgba(100,100,120,0.18)', 'rgba(100,100,120,0.05)', 'transparent'] as const)
@@ -180,14 +180,14 @@ const PnlHeroCard = ({ pnl, label }: { pnl: number; label: string }) => {
         <Text className="text-[10px] font-semibold text-white tracking-widest uppercase mb-3">
           {label}
         </Text>
-        <PnlText value={pnl} size="text-5xl" weight="font-semibold" glow />
+        <PnlText value={pnl} size="text-5xl" weight="font-semibold" glow accountType={accountType} />
       </ExpoLinearGradient>
     </View>
   );
 };
 
 // ─── Weekly Calendar ─────────────────────────────────────────────────────────
-const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrevWeek, onNextWeek }: any) => {
+const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrevWeek, onNextWeek, accountType }: any) => {
   const shortDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   // Format week range label
   const start = parseYMD(currentWeek[0]);
@@ -234,7 +234,7 @@ const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrev
               <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
               {hasActivity && (
                 <Text className="text-[9px] font-bold mt-1" style={{ color: pnlColor }}>
-                  ${(Math.abs(pnl))}
+                  {formatPnl(pnl, accountType)}
                 </Text>
               )}
             </Pressable>
@@ -246,7 +246,7 @@ const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrev
 };
 
 // ─── Monthly Calendar ─────────────────────────────────────────────────────────
-const MonthlyCalendar = ({ currentMonth, selectedDate, onSelect, dailyPnls, onTitlePress }: any) => {
+const MonthlyCalendar = ({ currentMonth, selectedDate, onSelect, dailyPnls, onTitlePress, accountType }: any) => {
   const firstDay = parseYMD(currentMonth[0]);
   const jsDay = firstDay.getUTCDay();
   const offset = jsDay === 0 ? 6 : jsDay - 1;
@@ -331,12 +331,14 @@ type TrendlineProps = {
   xTicks: { label: string; pct: number }[];
 };
 
-function formatPnlShort(v: number): string {
-  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`;
-  return `${Math.round(v)}`;
+function formatPnlShort(v: number, accountType: 'standard' | 'cents' = 'standard'): string {
+  const isCents = accountType === 'cents';
+  const displayVal = isCents ? v : v / 100;
+  if (Math.abs(displayVal) >= 1000) return `${(displayVal / 1000).toFixed(1)}k`;
+  return `${Math.round(displayVal)}`;
 }
 
-const Trendline = ({ points, xTicks }: TrendlineProps) => {
+const Trendline = ({ points, xTicks, accountType }: TrendlineProps & { accountType: 'standard' | 'cents' }) => {
   const [dim, setDim] = useState({ w: 0, h: 0 });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -474,7 +476,7 @@ const Trendline = ({ points, xTicks }: TrendlineProps) => {
               fill="#6b6880"
               textAnchor="end"
             >
-              {formatPnlShort(val)}
+              {formatPnlShort(val, accountType)}
             </SvgText>
           ))}
 
@@ -536,7 +538,7 @@ const Trendline = ({ points, xTicks }: TrendlineProps) => {
             {points[hoverIndex].tooltip}
           </Text>
           <Text className={`text-xs font-black ${points[hoverIndex].value >= 0 ? 'text-[#00E68A]' : 'text-[#FF4D6A]'}`}>
-            {points[hoverIndex].value > 0 ? '+' : ''}{points[hoverIndex].value.toFixed(2)}
+            {formatPnl(points[hoverIndex].value, accountType)}
           </Text>
         </View>
       )}
@@ -608,7 +610,7 @@ const BigDonut = ({ winRate, wins, losses }: { winRate: number; wins: number; lo
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { stats, trades, weeklyGoal, loading, error } = useDashboard();
+  const { stats, trades, weeklyGoal, accountType, loading, error } = useDashboard();
 
   const [period, setPeriod] = useState<Period>('today');
   const todayLocal = useMemo(() => {
@@ -810,7 +812,7 @@ export default function Dashboard() {
 
         {/* ─── PnL Hero Card ─── */}
         <Animated.View entering={FadeInDown.duration(500).delay(50)}>
-          <PnlHeroCard pnl={selectedPnl} label={periodLabel} />
+          <PnlHeroCard pnl={selectedPnl} label={periodLabel} accountType={accountType} />
         </Animated.View>
 
         {/* ─── Chart Card ─── */}
@@ -835,6 +837,7 @@ export default function Dashboard() {
                 onSelect={setSelectedDate}
                 onPrevWeek={() => setViewDate(prev => stepWeek(prev, -1))}
                 onNextWeek={() => setViewDate(prev => stepWeek(prev, 1))}
+                accountType={accountType}
               />
             )}
 
@@ -845,12 +848,14 @@ export default function Dashboard() {
                 dailyPnls={dailyPnls}
                 onSelect={setSelectedDate}
                 onTitlePress={() => setPickerVisible(true)}
+                accountType={accountType}
               />
             )}
 
             <Trendline
               points={chartPoints}
               xTicks={xTicks}
+              accountType={accountType}
             />
           </Card>
         </Animated.View>
@@ -877,7 +882,7 @@ export default function Dashboard() {
                 <TradeRow
                   key={trade.id}
                   trade={trade}
-                  index={i}
+                  accountType={accountType}
                   onPress={() => router.push(`/trade/${trade.id}`)}
                 />
               ))}

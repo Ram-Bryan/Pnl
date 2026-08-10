@@ -5,8 +5,8 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
 
 export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'standard'): string {
   const isCents = accountType === 'cents';
-  // For cents account, shift raw USD value × 100 to get USC display value
-  const displayValue = isCents ? value * 100 : value;
+  // If baseline is Cents: Cents view displays natively. Standard view divides by 100 to show Dollars.
+  const displayValue = isCents ? value : value / 100;
   const rounded = Math.round(displayValue * 100) / 100;
   const v = Math.abs(rounded);
   if (isCents) {

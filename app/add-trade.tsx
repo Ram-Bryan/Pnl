@@ -99,11 +99,11 @@ function validateDates(entryAt: string, exitAt: string, status: 'open' | 'closed
 
 // ─── PnL preview ─────────────────────────────────────────────────────────────
 
-function computeFormPnl({ entryFills, exitFills, direction, status, accountType, contractSize, fees, quoteCurrency }: {
+function computeFormPnl({ entryFills, exitFills, direction, status, contractSize, fees, quoteCurrency }: {
   entryFills: { price: string; quantity: string }[];
   exitFills: { price: string; quantity: string }[];
   direction: 'long' | 'short'; status: 'open' | 'closed';
-  accountType: 'standard' | 'cents'; contractSize: number; fees: number;
+  contractSize: number; fees: number;
   quoteCurrency: string;
 }): number | null {
   if (status !== 'closed') return null;
@@ -114,14 +114,13 @@ function computeFormPnl({ entryFills, exitFills, direction, status, accountType,
   if (!isFinite(avgE) || !isFinite(avgX) || !isFinite(sz)) return null;
   const diff = direction === 'long' ? avgX - avgE : avgE - avgX;
   const rawSize = sz * contractSize;
-  const adjustedSize = accountType === 'cents' ? rawSize * 0.01 : rawSize;
-  let rawPnl = diff * adjustedSize;
+  let rawPnl = diff * rawSize;
   // Convert non-USD quote currency (e.g. JPY) back to USD by dividing by entry rate
   if (quoteCurrency && quoteCurrency !== 'USD' && avgE > 0) rawPnl /= avgE;
   return rawPnl - fees;
 }
 
-function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0]) {
+function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType: 'standard' | 'cents' }) {
   const pnl = computeFormPnl(p);
   if (pnl === null) return null;
   const win = pnl >= 0;

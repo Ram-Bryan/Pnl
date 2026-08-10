@@ -51,11 +51,11 @@ export type StatsResult = {
   currentStreak: number; // positive = win streak, negative = loss streak
 };
 
-// Compute gross P&L for a single trade in USD, accounting for accountType and quote_currency.
-// - For a Cent account, the lot scale is 0.01x vs standard (1 lot = 1000 units not 100,000)
-// - For non-USD quote pairs (e.g. JPY in USDJPY), divides by entry_price to convert back to USD
+// Compute gross P&L for a single trade.
+// Natively outputs the base unit of the account (e.g. Cents for a Cents account).
+// - For non-USD quote pairs (e.g. JPY in USDJPY), divides by entry_price.
 // Returns 0 for open trades (no exit_price).
-export function computeTradePnl(trade: TradeWithInstrument, accountType: 'standard' | 'cents' = 'standard'): number {
+export function computeTradePnl(trade: TradeWithInstrument): number {
   if (trade.exit_price == null) return 0;
 
   const priceDiff =
@@ -64,10 +64,7 @@ export function computeTradePnl(trade: TradeWithInstrument, accountType: 'standa
       : trade.entry_price - trade.exit_price;
 
   const rawSize = trade.size * trade.contract_size;
-  // A cent account uses 0.01x lot scale vs standard
-  const adjustedSize = accountType === 'cents' ? rawSize * 0.01 : rawSize;
-
-  let rawPnl = priceDiff * adjustedSize;
+  let rawPnl = priceDiff * rawSize;
 
   // Convert quote currency to USD if needed (e.g. JPY -> USD: divide by exchange rate)
   if (trade.quote_currency && trade.quote_currency !== 'USD' && trade.entry_price > 0) {
@@ -89,7 +86,7 @@ function getWeekStart(d: Date): string {
   return monday.toISOString().slice(0, 10);
 }
 
-export function computeStats(trades: TradeWithInstrument[], accountType: 'standard' | 'cents' = 'standard'): StatsResult {
+export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   const now = new Date();
   const todayStr = toDateString(now.toISOString());
   const weekStartStr = getWeekStart(now);
@@ -101,7 +98,7 @@ export function computeStats(trades: TradeWithInstrument[], accountType: 'standa
   let grossProfit = 0, grossLoss = 0, wins = 0;
 
   for (const t of closed) {
-    const pnl = computeTradePnl(t, accountType);
+    const pnl = computeTradePnl(t);
     const dateStr = toDateString(t.exit_at ?? t.entry_at);
 
     if (dateStr === todayStr) todayPnl += pnl;
@@ -124,10 +121,10 @@ export function computeStats(trades: TradeWithInstrument[], accountType: 'standa
     const sorted = [...closed].sort(
       (a, b) => (b.exit_at ?? b.entry_at).localeCompare(a.exit_at ?? a.entry_at)
     );
-    const firstPnl = computeTradePnl(sorted[0], accountType);
+    const firstPnl = computeTradePnl(sorted[0]);
     const sign = firstPnl >= 0 ? 1 : -1;
     for (const t of sorted) {
-      const pnl = computeTradePnl(t, accountType);
+      const pnl = computeTradePnl(t);
       if ((pnl >= 0 ? 1 : -1) !== sign) break;
       streak += sign;
     }

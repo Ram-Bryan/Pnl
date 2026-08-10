@@ -8,12 +8,14 @@ export function PnlText({
   weight = 'font-bold',
   align,
   glow = false,
+  accountType = 'standard',
 }: {
   value: number;
   size?: string;
   weight?: string;
   align?: 'center';
   glow?: boolean;
+  accountType?: 'standard' | 'cents';
 }) {
   const isZero = value === 0;
   const isPositive = value > 0;
@@ -31,7 +33,7 @@ export function PnlText({
       className={`${color} ${size} ${weight} ${align === 'center' ? 'text-center' : ''}`}
       style={[{ fontVariant: ['tabular-nums'] }, glowStyle]}
     >
-      {formatPnl(value)}
+      {formatPnl(value, accountType)}
     </Text>
   );
 }

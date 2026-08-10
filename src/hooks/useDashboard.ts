@@ -69,7 +69,7 @@ export function useDashboard(): DashboardData {
 
       const at = (rawSettings['accountType'] as AccountType) || 'standard';
       setAccountType(at);
-      setStats(computeStats(tradesList, at));
+      setStats(computeStats(tradesList));
       setTrades(tradesList);
       setWeeklyGoal(goal ?? null);
     } catch (e) {
