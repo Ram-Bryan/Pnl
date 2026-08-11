@@ -48,6 +48,10 @@ export default function RootLayout() {
             name="trade/[id]"
             options={{ title: 'Trade Detail' }}
           />
+          <Stack.Screen
+            name="strategy/[id]"
+            options={{ title: 'Strategy' }}
+          />
         </Stack>
       </SettingsProvider>
     </SQLiteProvider>
