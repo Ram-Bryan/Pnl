@@ -1,23 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image,
-  KeyboardAvoidingView, Platform, Keyboard, Pressable,
+  KeyboardAvoidingView, Platform, Keyboard, Alert,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
 import {
-  Button, Chip, Segmented, Field, TextInputField, NumericInput, Sheet,
+  Button, Chip, Segmented, Field, TextInputField, NumericInput, Sheet, StrategyFormSheet,
 } from '../src/ui';
 import { formatPnl, DisplayUnit } from '../src/lib/format';
 import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
-import { resolveQuoteCurrency } from '../src/lib/quoteCurrency';
+import { resolveQuoteCurrency, inferQuoteCurrency } from '../src/lib/quoteCurrency';
+import { insertInstrument } from '../src/db/database';
+import { Instrument, AssetClass } from '../src/db/schema';
 import { useAddTrade } from '../src/hooks/useAddTrade';
 import { useAccountSetting } from '../src/hooks/SettingsContext';
-import { ENTRY_CONDITIONS, EXIT_CONDITIONS } from '../src/lib/constants';
+import { ENTRY_CONDITIONS, EXIT_CONDITIONS, ASSET_CLASSES } from '../src/lib/constants';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -230,11 +233,107 @@ function SelectRow({ value, placeholder, onPress }: { value: string | null; plac
   );
 }
 
+// ─── Symbol sheet ─────────────────────────────────────────────────────────────
+
+function SymbolSheet({ visible, onClose, instruments, onSelect }: {
+  visible: boolean;
+  onClose: () => void;
+  instruments: Instrument[];
+  onSelect: (id: number) => void;
+}) {
+  const db = useSQLiteContext();
+  const [query, setQuery] = useState('');
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [symbol, setSymbol] = useState('');
+  const [assetClass, setAssetClass] = useState<AssetClass>('forex');
+  const [contractSize, setContractSize] = useState('1');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) { setQuery(''); setQuickAddOpen(false); setSymbol(''); setContractSize('1'); }
+  }, [visible]);
+
+  const filtered = query.trim().length > 0
+    ? instruments.filter((i) => i.symbol.toLowerCase().includes(query.toLowerCase()))
+    : instruments;
+
+  const saveQuick = async () => {
+    if (!symbol.trim()) { Alert.alert('Validation', 'Symbol is required.'); return; }
+    setSaving(true);
+    try {
+      const inferredQuote = inferQuoteCurrency(symbol);
+      const id = await insertInstrument(db, {
+        symbol: symbol.toUpperCase(),
+        name: null,
+        asset_class: assetClass,
+        quote_currency: inferredQuote ? inferredQuote : 'USD',
+        price_mode: 'standard',
+        contract_size: parseFloat(contractSize) || 1,
+        tick_size: null,
+      });
+      onSelect(id);
+      onClose();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add symbol.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Select Symbol">
+      <View className="mt-4">
+        <TextInputField value={query} onChangeText={(v) => setQuery(v.toUpperCase())} placeholder="Search symbol…" autoFocus />
+
+        <TouchableOpacity
+          onPress={() => setQuickAddOpen((o) => !o)}
+          className="mt-3 mb-2 flex-row items-center px-4 py-3 rounded-2xl bg-[#00E68A]/10 border border-[#00E68A]/20"
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle" size={18} color="#00E68A" />
+          <Text className="text-[#00E68A] font-bold ml-2 text-sm">Add new symbol</Text>
+          <View className="flex-1" />
+          <Ionicons name={quickAddOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#00E68A" />
+        </TouchableOpacity>
+
+        {quickAddOpen && (
+          <View className="mb-2">
+            <TextInputField value={symbol} onChangeText={setSymbol} placeholder="e.g. USDJPY" autoCapitalize="characters" />
+            <Text className="text-[11px] text-[#6b6880] mt-1 mb-3">Quote currency auto-detected from the symbol (USDJPY → JPY).</Text>
+            <Segmented<AssetClass> options={ASSET_CLASSES.map((a) => ({ key: a.key, label: a.label }))} value={assetClass} onChange={setAssetClass} />
+            <View className="mt-3">
+              <NumericInput value={contractSize} onChangeText={setContractSize} placeholder="Contract size (forex: 100000)" />
+            </View>
+            <View className="mt-3 mb-2">
+              <Button title={saving ? 'Saving…' : 'Add & Select'} onPress={saveQuick} disabled={saving} />
+            </View>
+          </View>
+        )}
+
+        {filtered.map((inst) => (
+          <TouchableOpacity
+            key={inst.id}
+            onPress={() => { onSelect(inst.id); onClose(); }}
+            className="py-4 border-b border-[#2b2d3a] flex-row justify-between items-center"
+            activeOpacity={0.7}
+          >
+            <View>
+              <Text className="text-white font-bold text-base">{inst.symbol}</Text>
+              {inst.name ? <Text className="text-[#8B92A5] text-xs mt-0.5">{inst.name}</Text> : null}
+            </View>
+            <Text className="text-[#6b6880] text-[11px] font-bold uppercase">{inst.asset_class}</Text>
+          </TouchableOpacity>
+        ))}
+        <View className="h-6" />
+      </View>
+    </Sheet>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function AddTrade() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { id, strategyId } = useLocalSearchParams<{ id?: string; strategyId?: string }>();
   const parsedId = id ? parseInt(id, 10) : undefined;
   const tradeId = parsedId != null && !Number.isNaN(parsedId) ? parsedId : undefined;
@@ -245,23 +344,13 @@ export default function AddTrade() {
   const { accountType, displayUnit, loading: settingsLoading } = useAccountSetting();
 
   const [strategySheetOpen, setStrategySheetOpen] = useState(false);
-  const [symbolQuery, setSymbolQuery] = useState('');
-  const [symbolFocused, setSymbolFocused] = useState(false);
-
-  useEffect(() => {
-    if (fields.instrumentId && !symbolFocused) {
-      const inst = pickers.instruments.find(i => i.id === fields.instrumentId);
-      if (inst) setSymbolQuery(inst.symbol);
-    }
-  }, [fields.instrumentId, symbolFocused, pickers.instruments]);
+  const [symbolSheetOpen, setSymbolSheetOpen] = useState(false);
+  const [strategyFormOpen, setStrategyFormOpen] = useState(false);
 
   const selectedInstrument = pickers.instruments.find(i => i.id === fields.instrumentId);
   const quoteCurrency = resolveQuoteCurrency(selectedInstrument?.symbol ?? '', selectedInstrument?.quote_currency ?? 'USD');
   const contractSize = selectedInstrument?.contract_size ?? 1;
   const selectedStrategyName = fields.strategyId != null ? (pickers.strategies.find(s => s.id === fields.strategyId)?.name ?? null) : null;
-  const filteredInstruments = symbolQuery.trim().length > 0
-    ? pickers.instruments.filter(i => i.symbol.toLowerCase().includes(symbolQuery.toLowerCase()))
-    : pickers.instruments;
 
   const rrStr = computeRR(fillRows.entry, fields.direction, fields.stopLoss, fields.takeProfit);
   const slTpWarning = validateSlTp(fields.direction, fillRows.entry, fields.stopLoss, fields.takeProfit);
@@ -276,7 +365,7 @@ export default function AddTrade() {
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 40 + insets.bottom }}
         keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => { if (symbolFocused) { Keyboard.dismiss(); setSymbolFocused(false); } }}
+        onScrollBeginDrag={() => Keyboard.dismiss()}
       >
 
         {/* ── SECTION 1: Trade Details ─────────────────────────── */}
@@ -284,53 +373,7 @@ export default function AddTrade() {
           <SectionCard title="Trade Details">
 
             <Field label="Symbol *">
-              <View style={{ zIndex: 100 }}>
-                <TextInputField
-                  value={symbolQuery}
-                  onChangeText={v => { setSymbolQuery(v.toUpperCase()); if (fields.instrumentId) setters.setInstrumentId(null); }}
-                  placeholder="e.g. AAPL, BTCUSD"
-                  onFocus={() => setSymbolFocused(true)}
-                  onBlur={() => setTimeout(() => setSymbolFocused(false), 150)}
-                />
-                {/* Invisible overlay — tapping anywhere outside dismisses dropdown */}
-                {symbolFocused && (
-                  <Pressable
-                    onPress={() => { Keyboard.dismiss(); setSymbolFocused(false); }}
-                    style={{ position: 'absolute', top: -9999, left: -9999, right: -9999, bottom: -9999, zIndex: 9998 }}
-                  />
-                )}
-                {symbolFocused && (
-                  <View
-                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 9999, elevation: 20 }}
-                    className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl overflow-hidden"
-                  >
-                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 240 }}>
-                      {filteredInstruments.map(inst => (
-                        <TouchableOpacity
-                          key={inst.id}
-                          onPress={() => { setters.setInstrumentId(inst.id); setSymbolQuery(inst.symbol); setSymbolFocused(false); }}
-                          className="px-5 py-4 border-b border-[#2b2d3a] flex-row justify-between items-center"
-                          activeOpacity={0.7}
-                        >
-                          <View>
-                            <Text className="text-white font-bold text-base">{inst.symbol}</Text>
-                            {inst.name ? <Text className="text-[#8B92A5] text-xs mt-0.5">{inst.name}</Text> : null}
-                          </View>
-                          <Text className="text-[#6b6880] text-[11px] font-bold uppercase">{inst.asset_class}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      <TouchableOpacity
-                        onPress={() => { setSymbolFocused(false); router.push('/(tabs)/symbols'); }}
-                        className="px-5 py-4 flex-row items-center bg-[#00E68A]/10"
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="add-circle" size={18} color="#00E68A" />
-                        <Text className="text-[#00E68A] font-bold ml-2 text-sm">Add new symbol</Text>
-                      </TouchableOpacity>
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
+              <SelectRow value={selectedInstrument?.symbol ?? null} placeholder="Select symbol…" onPress={() => setSymbolSheetOpen(true)} />
               {selectedInstrument && (
                 <Animated.View entering={FadeInDown.duration(300)} className="flex-row items-center gap-2 mt-2 px-1">
                   <Ionicons name="checkmark-circle" size={14} color="#00E68A" />
@@ -518,6 +561,14 @@ export default function AddTrade() {
 
       {/* ── Strategy Sheet ──────────────────────────────────────── */}
       <Sheet visible={strategySheetOpen} onClose={() => setStrategySheetOpen(false)} title="Strategy">
+        <TouchableOpacity
+          onPress={() => { setStrategySheetOpen(false); setStrategyFormOpen(true); }}
+          className="mt-4 py-4 border-b border-[#2b2d3a] flex-row items-center justify-center bg-[#00E68A]/10 rounded-xl"
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle" size={18} color="#00E68A" />
+          <Text className="text-[#00E68A] font-bold ml-2 text-sm">New strategy</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => { setters.selectStrategy(null); setStrategySheetOpen(false); }} className="py-4 border-b border-[#2b2d3a] mt-4">
           <Text className="text-[#8B92A5] font-bold text-center">No strategy (Clear)</Text>
         </TouchableOpacity>
@@ -526,12 +577,29 @@ export default function AddTrade() {
             <View className="flex-1">
               <Text className="text-white font-bold text-base">{s.name}</Text>
               {s.description ? <Text className="text-[#8B92A5] text-sm mt-1">{s.description}</Text> : null}
+              <Text className="text-[#6b6880] text-xs mt-1">{strategyRuleCounts[s.id] ?? 0} rules</Text>
             </View>
             {fields.strategyId === s.id ? <Ionicons name="checkmark-circle" size={22} color="#00E68A" /> : null}
           </TouchableOpacity>
         ))}
         <View className="h-6" />
       </Sheet>
+
+      <SymbolSheet
+        visible={symbolSheetOpen}
+        onClose={() => setSymbolSheetOpen(false)}
+        instruments={pickers.instruments}
+        onSelect={(instId) => { setters.setInstrumentId(instId); setSymbolSheetOpen(false); }}
+      />
+
+      <StrategyFormSheet
+        visible={strategyFormOpen}
+        onClose={() => setStrategyFormOpen(false)}
+        onSubmit={async (input) => {
+          const newId = await createStrategy(input);
+          await setters.selectStrategy(newId);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
