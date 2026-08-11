@@ -24,7 +24,8 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Card, EmptyState, Fab, PnlText, SectionHeader, Segmented, TradeRow } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useDashboard } from '../../src/hooks/useDashboard';
-import { formatMoney, formatPnl } from '../../src/lib/format';
+import { useAccountSetting } from '../../src/hooks/SettingsContext';
+import { formatMoney, formatPnl, DisplayUnit } from '../../src/lib/format';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -160,7 +161,7 @@ const MonthPicker = ({ visible, onClose, viewDate, onSelectMonth }: any) => {
 };
 
 // ─── Pnl Hero Card ────────────────────────────────────────────────────────────
-const PnlHeroCard = ({ pnl, label, accountType }: { pnl: number; label: string; accountType: 'standard' | 'cents' }) => {
+const PnlHeroCard = ({ pnl, label, displayUnit }: { pnl: number; label: string; displayUnit: DisplayUnit }) => {
   const isZero = pnl === 0;8
   const isPositive = pnl > 0;
   const gradientColors = isZero
@@ -180,14 +181,14 @@ const PnlHeroCard = ({ pnl, label, accountType }: { pnl: number; label: string; 
         <Text className="text-[10px] font-semibold text-white tracking-widest uppercase mb-3">
           {label}
         </Text>
-        <PnlText value={pnl} size="text-5xl" weight="font-semibold" glow accountType={accountType} />
+        <PnlText value={pnl} size="text-5xl" weight="font-semibold" glow displayUnit={displayUnit} />
       </ExpoLinearGradient>
     </View>
   );
 };
 
 // ─── Weekly Calendar ─────────────────────────────────────────────────────────
-const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrevWeek, onNextWeek, accountType }: any) => {
+const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrevWeek, onNextWeek, displayUnit }: any) => {
   const shortDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   // Format week range label
   const start = parseYMD(currentWeek[0]);
@@ -234,7 +235,7 @@ const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrev
               <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
               {hasActivity && (
                 <Text className="text-[9px] font-bold mt-1" style={{ color: pnlColor }}>
-                  {formatPnl(pnl, accountType)}
+                  {formatPnl(pnl, displayUnit)}
                 </Text>
               )}
             </Pressable>
@@ -246,7 +247,7 @@ const WeeklyCalendar = ({ currentWeek, selectedDate, onSelect, dailyPnls, onPrev
 };
 
 // ─── Monthly Calendar ─────────────────────────────────────────────────────────
-const MonthlyCalendar = ({ currentMonth, selectedDate, onSelect, dailyPnls, onTitlePress, accountType }: any) => {
+const MonthlyCalendar = ({ currentMonth, selectedDate, onSelect, dailyPnls, onTitlePress, displayUnit }: any) => {
   const firstDay = parseYMD(currentMonth[0]);
   const jsDay = firstDay.getUTCDay();
   const offset = jsDay === 0 ? 6 : jsDay - 1;
@@ -331,14 +332,13 @@ type TrendlineProps = {
   xTicks: { label: string; pct: number }[];
 };
 
-function formatPnlShort(v: number, accountType: 'standard' | 'cents' = 'standard'): string {
-  const isCents = accountType === 'cents';
-  const displayVal = isCents ? v * 100 : v;
+function formatPnlShort(v: number, displayUnit: DisplayUnit = 'usd'): string {
+  const displayVal = displayUnit === 'usc' ? v * 100 : v;
   if (Math.abs(displayVal) >= 1000) return `${(displayVal / 1000).toFixed(1)}k`;
   return `${Math.round(displayVal)}`;
 }
 
-const Trendline = ({ points, xTicks, accountType }: TrendlineProps & { accountType: 'standard' | 'cents' }) => {
+const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUnit: DisplayUnit }) => {
   const [dim, setDim] = useState({ w: 0, h: 0 });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -476,7 +476,7 @@ const Trendline = ({ points, xTicks, accountType }: TrendlineProps & { accountTy
               fill="#6b6880"
               textAnchor="end"
             >
-              {formatPnlShort(val, accountType)}
+              {formatPnlShort(val, displayUnit)}
             </SvgText>
           ))}
 
@@ -538,7 +538,7 @@ const Trendline = ({ points, xTicks, accountType }: TrendlineProps & { accountTy
             {points[hoverIndex].tooltip}
           </Text>
           <Text className={`text-xs font-black ${points[hoverIndex].value >= 0 ? 'text-[#00E68A]' : 'text-[#FF4D6A]'}`}>
-            {formatPnl(points[hoverIndex].value, accountType)}
+            {formatPnl(points[hoverIndex].value, displayUnit)}
           </Text>
         </View>
       )}
@@ -610,7 +610,8 @@ const BigDonut = ({ winRate, wins, losses }: { winRate: number; wins: number; lo
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { stats, trades, weeklyGoal, accountType, loading, error } = useDashboard();
+  const { stats, trades, weeklyGoal, displayUnit, loading, error } = useDashboard();
+  const { accountType } = useAccountSetting();
 
   const [period, setPeriod] = useState<Period>('today');
   const todayLocal = useMemo(() => {
@@ -637,11 +638,11 @@ export default function Dashboard() {
     const map: Record<string, number> = {};
     trades.forEach(t => {
       const d = (t.exit_at ?? t.entry_at).slice(0, 10);
-      const pnl = computeTradePnl(t, accountType);
+      const pnl = computeTradePnl(t);
       map[d] = (map[d] || 0) + pnl;
     });
     return map;
-  }, [trades, accountType]);
+  }, [trades]);
 
   const currentWeek = useMemo(() => getWeekDays(viewDate), [viewDate]);
   const currentMonth = useMemo(() => getMonthDays(viewDate), [viewDate]);
@@ -653,7 +654,7 @@ export default function Dashboard() {
       const todayTrades = [...trades]
         .filter(t => (t.exit_at ?? t.entry_at).slice(0, 10) === selectedDate)
         .reverse();
-      dataset = todayTrades.map(t => ({ pnl: computeTradePnl(t, accountType), timeStr: t.exit_at ?? t.entry_at }));
+      dataset = todayTrades.map(t => ({ pnl: computeTradePnl(t), timeStr: t.exit_at ?? t.entry_at }));
     } else if (period === 'week') {
       dataset = currentWeek.map(d => ({ pnl: dailyPnls[d] || 0, timeStr: d }));
     } else if (period === 'month') {
@@ -667,7 +668,7 @@ export default function Dashboard() {
             dayMap[day] = 0;
             allDays.push(day);
          }
-         dayMap[day] += computeTradePnl(t, accountType);
+         dayMap[day] += computeTradePnl(t);
       });
       dataset = allDays.map(d => ({ pnl: dayMap[d], timeStr: d }));
     }
@@ -738,7 +739,7 @@ export default function Dashboard() {
     }
 
     return { chartPoints: points, xTicks: ticks };
-  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls, accountType]);
+  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls]);
 
   // Trades visible in the bottom list: ALL trades for the current period
   const visibleTrades = useMemo(() => {
@@ -758,8 +759,8 @@ export default function Dashboard() {
 
   // PnL hero: dynamically computed from the currently visible trades
   const selectedPnl = useMemo(() => {
-    return visibleTrades.reduce((sum, t) => sum + computeTradePnl(t, accountType), 0);
-  }, [visibleTrades, accountType]);
+    return visibleTrades.reduce((sum, t) => sum + computeTradePnl(t), 0);
+  }, [visibleTrades]);
 
   const periodLabel = useMemo(() => {
     if (period === 'today') return "Today's P&L";
@@ -812,7 +813,7 @@ export default function Dashboard() {
 
         {/* ─── PnL Hero Card ─── */}
         <Animated.View entering={FadeInDown.duration(500).delay(50)}>
-          <PnlHeroCard pnl={selectedPnl} label={periodLabel} accountType={accountType} />
+          <PnlHeroCard pnl={selectedPnl} label={periodLabel} displayUnit={displayUnit} />
         </Animated.View>
 
         {/* ─── Chart Card ─── */}
@@ -837,7 +838,7 @@ export default function Dashboard() {
                 onSelect={setSelectedDate}
                 onPrevWeek={() => setViewDate(prev => stepWeek(prev, -1))}
                 onNextWeek={() => setViewDate(prev => stepWeek(prev, 1))}
-                accountType={accountType}
+                displayUnit={displayUnit}
               />
             )}
 
@@ -848,14 +849,14 @@ export default function Dashboard() {
                 dailyPnls={dailyPnls}
                 onSelect={setSelectedDate}
                 onTitlePress={() => setPickerVisible(true)}
-                accountType={accountType}
+                displayUnit={displayUnit}
               />
             )}
 
             <Trendline
               points={chartPoints}
               xTicks={xTicks}
-              accountType={accountType}
+              displayUnit={displayUnit}
             />
           </Card>
         </Animated.View>
@@ -883,6 +884,7 @@ export default function Dashboard() {
                   key={trade.id}
                   trade={trade}
                   accountType={accountType}
+                  displayUnit={displayUnit}
                   onPress={() => router.push(`/trade/${trade.id}`)}
                 />
               ))}

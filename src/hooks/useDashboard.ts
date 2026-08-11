@@ -3,14 +3,14 @@ import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
 import { TradeWithInstrument, StatsResult, computeStats } from '../stats/computeStats';
-import { AccountType } from '../stats/tradeMath';
+import { DisplayUnit } from '../lib/format';
 import { useAccountSetting } from './SettingsContext';
 
 type DashboardData = {
   stats: StatsResult;
   trades: TradeWithInstrument[];
   weeklyGoal: Goal | null;
-  accountType: AccountType;
+  displayUnit: DisplayUnit;
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
@@ -24,7 +24,7 @@ const EMPTY_STATS: StatsResult = {
 
 export function useDashboard(): DashboardData {
   const db = useSQLiteContext();
-  const { accountType } = useAccountSetting();
+  const { displayUnit } = useAccountSetting();
   const [trades, setTrades] = useState<TradeWithInstrument[]>([]);
   const [weeklyGoal, setWeeklyGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,8 +78,8 @@ export function useDashboard(): DashboardData {
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   // Stats are recomputed reactively so the dashboard converts immediately when
-  // the account type is toggled in Settings.
-  const stats = useMemo(() => computeStats(trades, accountType), [trades, accountType]);
+  // the display unit is toggled in Settings.
+  const stats = useMemo(() => computeStats(trades), [trades]);
 
-  return { stats, trades, weeklyGoal, accountType, loading, error, refetch: fetch };
+  return { stats, trades, weeklyGoal, displayUnit, loading, error, refetch: fetch };
 }

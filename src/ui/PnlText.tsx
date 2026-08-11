@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextStyle } from 'react-native';
-import { formatPnl } from '../lib/format';
+import { formatPnl, DisplayUnit } from '../lib/format';
 
 export function PnlText({
   value,
@@ -8,14 +8,14 @@ export function PnlText({
   weight = 'font-bold',
   align,
   glow = false,
-  accountType = 'standard',
+  displayUnit = 'usd',
 }: {
   value: number;
   size?: string;
   weight?: string;
   align?: 'center';
   glow?: boolean;
-  accountType?: 'standard' | 'cents';
+  displayUnit?: DisplayUnit;
 }) {
   const isZero = value === 0;
   const isPositive = value > 0;
@@ -33,7 +33,7 @@ export function PnlText({
       className={`${color} ${size} ${weight} ${align === 'center' ? 'text-center' : ''}`}
       style={[{ fontVariant: ['tabular-nums'] }, glowStyle]}
     >
-      {formatPnl(value, accountType)}
+      {formatPnl(value, displayUnit)}
     </Text>
   );
 }

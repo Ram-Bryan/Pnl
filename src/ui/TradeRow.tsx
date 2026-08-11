@@ -3,19 +3,21 @@ import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
-import { computeInvestedUsd } from '../stats/tradeMath';
-import { formatPnl } from '../lib/format';
+import { computeInvestedUsd, AccountType } from '../stats/tradeMath';
+import { formatPnl, DisplayUnit } from '../lib/format';
 
 export function TradeRow({
   trade,
   onPress,
   index = 0,
   accountType = 'standard',
+  displayUnit = 'usd',
 }: {
   trade: TradeWithInstrument;
   onPress: () => void;
   index?: number;
-  accountType?: 'standard' | 'cents';
+  accountType?: AccountType;
+  displayUnit?: DisplayUnit;
 }) {
   const entryDate = new Date(trade.entry_at).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -24,9 +26,9 @@ export function TradeRow({
   });
 
   const isOpen = trade.status === 'open';
-  const pnl = isOpen ? 0 : computeTradePnl(trade, accountType);
+  const pnl = isOpen ? 0 : computeTradePnl(trade);
   const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
-  const pnlFormatted = isOpen ? '–' : formatPnl(pnl, accountType);
+  const pnlFormatted = isOpen ? '–' : formatPnl(pnl, displayUnit);
 
   const directionColor = trade.direction === 'long' ? '#00E68A' : '#FF4D6A';
   const dirBg = trade.direction === 'long' ? 'rgba(0,230,138,0.1)' : 'rgba(255,77,106,0.1)';
