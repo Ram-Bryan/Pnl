@@ -11,7 +11,7 @@ import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
 import {
   Button, Chip, Segmented, Field, TextInputField, NumericInput, Sheet,
 } from '../src/ui';
-import { formatPnl } from '../src/lib/format';
+import { formatPnl, DisplayUnit } from '../src/lib/format';
 import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
 import { resolveQuoteCurrency } from '../src/lib/quoteCurrency';
@@ -127,7 +127,7 @@ function computeFormPnl({ entryFills, exitFills, direction, status, contractSize
   });
 }
 
-function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType: AccountType }) {
+function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType: AccountType; displayUnit: DisplayUnit }) {
   const pnl = computeFormPnl(p);
   if (pnl === null) return null;
   const win = pnl >= 0;
@@ -140,7 +140,7 @@ function PnlPreviewCard(p: Parameters<typeof computeFormPnl>[0] & { accountType:
       <View>
         <Text style={{ color: c }} className="text-xs font-bold uppercase tracking-wider mb-1">Estimated PnL</Text>
         <Text style={{ color: c, fontVariant: ['tabular-nums'] }} className="text-2xl font-black">
-          {formatPnl(pnl, p.accountType)}
+          {formatPnl(pnl, p.displayUnit)}
         </Text>
         {p.accountType === 'cents' && <Text className="text-[10px] text-[#6b6880] mt-0.5 uppercase">Cents Account</Text>}
       </View>
@@ -240,7 +240,7 @@ export default function AddTrade() {
   const tradeId = parsedId != null && !Number.isNaN(parsedId) ? parsedId : undefined;
 
   const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading: addTradeLoading, ruleChecks } = useAddTrade({ tradeId });
-  const { accountType, loading: settingsLoading } = useAccountSetting();
+  const { accountType, displayUnit, loading: settingsLoading } = useAccountSetting();
 
   const [strategySheetOpen, setStrategySheetOpen] = useState(false);
   const [symbolQuery, setSymbolQuery] = useState('');
@@ -422,7 +422,7 @@ export default function AddTrade() {
               <PnlPreviewCard
                 entryFills={fillRows.entry} exitFills={fillRows.exit}
                 direction={fields.direction} status={fields.status}
-                accountType={accountType} contractSize={contractSize}
+                accountType={accountType} displayUnit={displayUnit} contractSize={contractSize}
                 quoteCurrency={quoteCurrency}
                 fees={parseFloat(fields.fees) || 0}
               />
