@@ -502,6 +502,81 @@ export async function getStrategyRules(db: SQLiteDatabase, strategyId: number): 
   );
 }
 
+export async function getStrategyById(db: SQLiteDatabase, id: number): Promise<Strategy | null> {
+  return db.getFirstAsync<Strategy>('SELECT * FROM strategies WHERE id = ?', [id]);
+}
+
+export async function insertStrategy(
+  db: SQLiteDatabase,
+  input: { name: string; description: string | null }
+): Promise<number> {
+  const result = await db.runAsync(
+    'INSERT INTO strategies (name, description) VALUES (?, ?)',
+    [input.name.trim(), input.description?.trim() || null]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateStrategy(
+  db: SQLiteDatabase,
+  id: number,
+  input: { name: string; description: string | null }
+): Promise<void> {
+  await db.runAsync(
+    'UPDATE strategies SET name = ?, description = ? WHERE id = ?',
+    [input.name.trim(), input.description?.trim() || null, id]
+  );
+}
+
+export async function archiveStrategy(db: SQLiteDatabase, id: number): Promise<void> {
+  await db.runAsync("UPDATE strategies SET archived_at = datetime('now') WHERE id = ?", [id]);
+}
+
+export async function insertStrategyRule(db: SQLiteDatabase, strategyId: number, ruleText: string): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM strategy_rules WHERE strategy_id = ?',
+    [strategyId]
+  );
+  const result = await db.runAsync(
+    'INSERT INTO strategy_rules (strategy_id, rule_text, sort_order) VALUES (?, ?, ?)',
+    [strategyId, ruleText.trim(), row?.n ?? 0]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateStrategyRule(db: SQLiteDatabase, ruleId: number, ruleText: string): Promise<void> {
+  await db.runAsync('UPDATE strategy_rules SET rule_text = ? WHERE id = ?', [ruleText.trim(), ruleId]);
+}
+
+export async function archiveStrategyRule(db: SQLiteDatabase, ruleId: number): Promise<void> {
+  await db.runAsync("UPDATE strategy_rules SET archived_at = datetime('now') WHERE id = ?", [ruleId]);
+}
+
+export async function getStrategyRuleCounts(db: SQLiteDatabase): Promise<Record<number, number>> {
+  const rows = await db.getAllAsync<{ strategy_id: number; n: number }>(
+    `SELECT strategy_id, COUNT(*) AS n FROM strategy_rules WHERE archived_at IS NULL GROUP BY strategy_id`
+  );
+  const map: Record<number, number> = {};
+  for (const row of rows) map[row.strategy_id] = row.n;
+  return map;
+}
+
+export async function getRuleAdherence(
+  db: SQLiteDatabase,
+  strategyId: number
+): Promise<{ ruleId: number; rule_text: string; checked: number; unchecked: number }[]> {
+  return db.getAllAsync<{ ruleId: number; rule_text: string; checked: number; unchecked: number }>(`
+    SELECT r.id AS ruleId, r.rule_text,
+           COALESCE(SUM(c.checked), 0) AS checked,
+           COALESCE(COUNT(c.trade_id), 0) - COALESCE(SUM(c.checked), 0) AS unchecked
+    FROM   strategy_rules r
+    LEFT JOIN trade_rule_checks c ON c.strategy_rule_id = r.id
+    WHERE  r.strategy_id = ? AND r.archived_at IS NULL
+    GROUP  BY r.id
+    ORDER  BY r.sort_order
+  `, [strategyId]);
+}
+
 export async function getTradeTags(db: SQLiteDatabase, tradeId: number): Promise<Tag[]> {
   return db.getAllAsync<Tag>(
     `SELECT t.* FROM tags t JOIN trade_tags tt ON tt.tag_id = t.id WHERE tt.trade_id = ? ORDER BY t.id`,
