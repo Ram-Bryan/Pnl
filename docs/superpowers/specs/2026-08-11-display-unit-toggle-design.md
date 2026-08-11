@@ -117,12 +117,14 @@ type SettingsContextValue = {
 };
 ```
 
-- On load: read `getFirstAccount` + `getAllSettings`; `displayUnit` defaults to
-  the account type's mapping (`cents → usc`, `standard → usd`) unless the
-  `displayUnit` setting is present.
-- `setAccountType`: `updateAccountPriceMode` + re-sync display default (change
-  account type, display follows unless the user has since set `displayUnit`
-  explicitly — see note below).
+- On load: read `getFirstAccount` + `getAllSettings`. `displayUnit` = the stored
+  `displayUnit` setting if present; otherwise default to the account type's
+  mapping (`cents → usc`, `standard → usd`). This is the only place the default
+  is applied.
+- `setAccountType`: `updateAccountPriceMode` + state. Does **not** touch
+  `displayUnit` — the display unit only ever changes when the user toggles the
+  display control. (The display default is computed at load time, so a freshly
+  declared cents account shows USC until the user toggles display.)
 - `setDisplayUnit`: `setSetting('displayUnit', value)` + state.
 
 `app/(tabs)/settings.tsx`:
@@ -133,11 +135,10 @@ type SettingsContextValue = {
   Helper copy: "Display P&L in USC instead of USD. This changes the display
   unit only — calculations are unaffected."
 
-Note on sync: the simplest correct behavior is that changing the account type
-also updates the display default (so a newly-declared cents account shows USC).
-If the user has already set `displayUnit` explicitly, keep the explicit choice.
-(Implementation detail left to the plan; the observable rule is "display
-defaults to account type until the user toggles display".)
+Note on sync: the display unit is purely a view preference. Changing the account
+type (sizing) never rewrites the display unit. The "display defaults to account
+type" rule only applies at load time, so the user keeps whatever unit they last
+chose.
 
 ### 3.5 Call sites (format only — never sizing)
 
@@ -152,7 +153,7 @@ takes no account argument (per-trade sizing):
 | `app/(tabs)/trades.tsx` | `computeTradePnl(t)` (no arg); P&L filter compares typed value in display unit (`displayUnit === 'usc' ? ×0.01 : ×1`); label/prefix follow `displayUnit` |
 | `app/trade/[id].tsx` | `computeTradePnl(trade)` (no arg); `PnlText` uses `displayUnit` |
 | `app/add-trade.tsx` | preview sizes from `accountType` (the account fact), formats with `displayUnit` |
-| `src/hooks/useDashboard.ts` | `computeStats(trades)` (no arg); still surfaces `displayUnit` from context |
+| `src/hooks/useDashboard.ts` | `computeStats(trades)` (no arg); drop `accountType` from its return, surface `displayUnit` from context instead |
 
 ### 3.6 Tests
 
