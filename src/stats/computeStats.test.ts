@@ -20,10 +20,13 @@ function makeTrade(overrides: Partial<TradeWithInstrument>): TradeWithInstrument
 }
 
 describe('computeStats', () => {
-  it('scales all P&L down 100x on a cents account', () => {
-    const trades = [makeTrade({ id: 1 }), makeTrade({ id: 2, size: 2 })];
-    expect(computeStats(trades, 'standard').allTimePnl).toBeCloseTo(300, 6);
-    expect(computeStats(trades, 'cents').allTimePnl).toBeCloseTo(3, 6);
+  it('sizes each trade by its own price_mode', () => {
+    const standard = makeTrade({ id: 1, price_mode: 'standard' });
+    const cents = makeTrade({ id: 2, size: 2, price_mode: 'cents' });
+    // standard: 1 lot × 100 contract × 1 = 100; cents: 2 × 100 × 0.01 = 2
+    expect(computeTradePnl(standard)).toBeCloseTo(100, 6);
+    expect(computeTradePnl(cents)).toBeCloseTo(2, 6);
+    expect(computeStats([standard, cents]).allTimePnl).toBeCloseTo(102, 6);
   });
 
   it('derives totals, win rate and streak from recent results', () => {
@@ -32,7 +35,7 @@ describe('computeStats', () => {
       makeTrade({ id: 2, entry_price: 100, exit_price: 99, exit_at: '2026-08-02T11:00:00' }),
       makeTrade({ id: 3, entry_price: 100, exit_price: 99, exit_at: '2026-08-03T11:00:00' }),
     ];
-    const stats = computeStats(trades, 'standard');
+    const stats = computeStats(trades);
     expect(stats.totalTrades).toBe(3);
     expect(stats.wins).toBe(1);
     expect(stats.losses).toBe(2);
@@ -47,13 +50,14 @@ describe('computeTradePnl', () => {
     const trade = makeTrade({
       symbol: 'USDJPY',
       quote_currency: 'USD',
+      price_mode: 'cents',
       direction: 'short',
       entry_price: 157.536,
       exit_price: 157.552,
       size: 0.01,
       contract_size: 100000,
     });
-    const pnl = computeTradePnl(trade, 'cents');
+    const pnl = computeTradePnl(trade);
     expect(pnl).toBeCloseTo(-0.0010155, 6);
     expect(pnl * 100).toBeCloseTo(-0.10, 2);
   });
@@ -62,20 +66,22 @@ describe('computeTradePnl', () => {
     const trade = makeTrade({
       symbol: 'USDJPY',
       quote_currency: 'JPY',
+      price_mode: 'cents',
       direction: 'short',
       entry_price: 157.536,
       exit_price: 157.552,
       size: 0.01,
       contract_size: 100000,
     });
-    expect(computeTradePnl(trade, 'cents')).toBeCloseTo(-0.0010155, 6);
+    expect(computeTradePnl(trade)).toBeCloseTo(-0.0010155, 6);
   });
 
-  it('toggling the account type converts every P&L display unit (USC <-> USD)', () => {
+  it('display unit converts the same canonical P&L (USC <-> USD) without recomputing', () => {
     // Same trade as it appears on the dashboard hero, trade card and detail screen.
     const trade = makeTrade({
       symbol: 'USDJPY',
       quote_currency: 'USD',
+      price_mode: 'cents',
       direction: 'short',
       entry_price: 157.536,
       exit_price: 157.552,
@@ -83,15 +89,15 @@ describe('computeTradePnl', () => {
       contract_size: 100000,
     });
 
-    const rowCents = computeTradePnl(trade, 'cents');
-    const rowStandard = computeTradePnl(trade, 'standard');
-    expect(formatPnl(rowCents, 'cents')).toBe('0.10 USC');
-    expect(formatPnl(rowStandard, 'standard')).toBe('$0.10');
+    const pnl = computeTradePnl(trade);
+    expect(pnl).toBeCloseTo(-0.0010155, 6);
+    expect(formatPnl(pnl, 'usc')).toBe('0.10 USC');
+    expect(formatPnl(pnl, 'usd')).toBe('$0.001');
 
     // Dashboard hero shows the sum of visible trades; the sum must convert too.
-    const heroCents = computeStats([trade], 'cents').allTimePnl;
-    const heroStandard = computeStats([trade], 'standard').allTimePnl;
-    expect(formatPnl(heroCents, 'cents')).toBe('0.10 USC');
-    expect(formatPnl(heroStandard, 'standard')).toBe('$0.10');
+    const hero = computeStats([trade]).allTimePnl;
+    expect(hero).toBeCloseTo(-0.0010155, 6);
+    expect(formatPnl(hero, 'usc')).toBe('0.10 USC');
+    expect(formatPnl(hero, 'usd')).toBe('$0.001');
   });
 });

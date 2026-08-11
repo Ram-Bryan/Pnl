@@ -1,5 +1,5 @@
 import { AssetClass, TradeStyle } from '../db/schema';
-import { AccountType, computeTradePnlInUsd } from './tradeMath';
+import { computeTradePnlInUsd } from './tradeMath';
 import { resolveQuoteCurrency } from '../lib/quoteCurrency';
 
 // Pure stats engine — no SQLite dependency.
@@ -57,7 +57,7 @@ export type StatsResult = {
 // - Lot volume is scaled 100x smaller on a cents account (MT5 cent-account sizing).
 // - For non-USD quote pairs (e.g. JPY in USDJPY), converts to USD by the entry price.
 // Returns 0 for open trades (no exit_price).
-export function computeTradePnl(trade: TradeWithInstrument, accountType: AccountType = 'standard'): number {
+export function computeTradePnl(trade: TradeWithInstrument): number {
   if (trade.exit_price == null) return 0;
 
   return computeTradePnlInUsd({
@@ -68,7 +68,7 @@ export function computeTradePnl(trade: TradeWithInstrument, accountType: Account
     contractSize: trade.contract_size,
     quoteCurrency: resolveQuoteCurrency(trade.symbol, trade.quote_currency),
     fees: trade.fees,
-    accountType,
+    accountType: trade.price_mode,
   });
 }
 
@@ -84,7 +84,7 @@ function getWeekStart(d: Date): string {
   return monday.toISOString().slice(0, 10);
 }
 
-export function computeStats(trades: TradeWithInstrument[], accountType: AccountType = 'standard'): StatsResult {
+export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   const now = new Date();
   const todayStr = toDateString(now.toISOString());
   const weekStartStr = getWeekStart(now);
@@ -96,7 +96,7 @@ export function computeStats(trades: TradeWithInstrument[], accountType: Account
   let grossProfit = 0, grossLoss = 0, wins = 0;
 
   for (const t of closed) {
-    const pnl = computeTradePnl(t, accountType);
+    const pnl = computeTradePnl(t);
     const dateStr = toDateString(t.exit_at ?? t.entry_at);
 
     if (dateStr === todayStr) todayPnl += pnl;
@@ -119,10 +119,10 @@ export function computeStats(trades: TradeWithInstrument[], accountType: Account
     const sorted = [...closed].sort(
       (a, b) => (b.exit_at ?? b.entry_at).localeCompare(a.exit_at ?? a.entry_at)
     );
-    const firstPnl = computeTradePnl(sorted[0], accountType);
+    const firstPnl = computeTradePnl(sorted[0]);
     const sign = firstPnl >= 0 ? 1 : -1;
     for (const t of sorted) {
-      const pnl = computeTradePnl(t, accountType);
+      const pnl = computeTradePnl(t);
       if ((pnl >= 0 ? 1 : -1) !== sign) break;
       streak += sign;
     }
