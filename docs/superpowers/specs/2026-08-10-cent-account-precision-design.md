@@ -2,6 +2,10 @@
 
 Date: 2026-08-10
 Status: Approved for implementation
+> **Superseded in part:** the "account type as a global compute toggle" decision
+> is replaced by [2026-08-11-display-unit-toggle-design.md](./2026-08-11-display-unit-toggle-design.md).
+> Account type now lives on `accounts.price_mode` and only drives sizing; the
+> Settings toggle is a pure display-unit converter (`-0.10 USC ↔ -$0.001`).
 
 ## 1. Problem
 
