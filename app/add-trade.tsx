@@ -235,11 +235,13 @@ function SelectRow({ value, placeholder, onPress }: { value: string | null; plac
 export default function AddTrade() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, strategyId } = useLocalSearchParams<{ id?: string; strategyId?: string }>();
   const parsedId = id ? parseInt(id, 10) : undefined;
   const tradeId = parsedId != null && !Number.isNaN(parsedId) ? parsedId : undefined;
+  const parsedStrategyId = strategyId ? parseInt(strategyId, 10) : undefined;
+  const presetStrategyId = parsedStrategyId != null && !Number.isNaN(parsedStrategyId) ? parsedStrategyId : undefined;
 
-  const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading: addTradeLoading, ruleChecks } = useAddTrade({ tradeId });
+  const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading: addTradeLoading, ruleChecks, strategyRuleCounts, createStrategy } = useAddTrade({ tradeId, strategyId: presetStrategyId });
   const { accountType, displayUnit, loading: settingsLoading } = useAccountSetting();
 
   const [strategySheetOpen, setStrategySheetOpen] = useState(false);

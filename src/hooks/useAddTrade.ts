@@ -23,6 +23,8 @@ import {
   getTags,
   getStrategies,
   getStrategyRules,
+  insertStrategy,
+  getStrategyRuleCounts,
   saveTradeAssociations,
   saveTradeScreenshots,
   getTradeTags,
@@ -107,13 +109,14 @@ async function persistScreenshots(uris: string[]): Promise<string[]> {
   return persisted;
 }
 
-export function useAddTrade({ tradeId }: { tradeId?: number }) {
+export function useAddTrade({ tradeId, strategyId }: { tradeId?: number; strategyId?: number }) {
   const db = useSQLiteContext();
   const router = useRouter();
   const editMode = tradeId != null;
 
   const [fields, setFields] = useState<FormState>(createDefaultForm);
   const [ruleChecks, setRuleChecks] = useState<Record<number, boolean>>({});
+  const [strategyRuleCounts, setStrategyRuleCounts] = useState<Record<number, number>>({});
   const [emotions, setEmotions] = useState<Emotion[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
@@ -132,17 +135,26 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     let mounted = true;
     (async () => {
       try {
-        const [emotionRows, tagRows, strategyRows, instRows] = await Promise.all([
+        const [emotionRows, tagRows, strategyRows, instRows, ruleCounts] = await Promise.all([
           getEmotions(db),
           getTags(db),
           getStrategies(db),
           getInstruments(db),
+          getStrategyRuleCounts(db),
         ]);
         if (!mounted) return;
         setEmotions(emotionRows);
         setTags(tagRows);
         setStrategies(strategyRows);
         setInstruments(instRows);
+        setStrategyRuleCounts(ruleCounts);
+
+        if (!editMode && strategyId != null) {
+          strategyIdRef.current = strategyId;
+          setFields((f) => ({ ...f, strategyId }));
+          const rules = await getStrategyRules(db, strategyId);
+          if (mounted) setStrategyRules(rules);
+        }
 
         if (!editMode || tradeId == null) {
           if (mounted) setLoading(false);
@@ -205,7 +217,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     return () => {
       mounted = false;
     };
-  }, [db, editMode, tradeId]);
+  }, [db, editMode, tradeId, strategyId]);
 
   const setField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setFields((f) => ({ ...f, [key]: value }));
@@ -245,6 +257,14 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     if (strategyIdRef.current !== id) return;
     setStrategyRules(rules);
     setRuleChecks({});
+  }, [db]);
+
+  const createStrategy = useCallback(async (input: { name: string; description: string | null }) => {
+    const id = await insertStrategy(db, input);
+    const rows = await getStrategies(db);
+    setStrategies(rows);
+    setStrategyRuleCounts(await getStrategyRuleCounts(db));
+    return id;
   }, [db]);
 
   const addFill = useCallback((side: FillSide) => {
@@ -417,5 +437,7 @@ export function useAddTrade({ tradeId }: { tradeId?: number }) {
     editMode,
     loading,
     ruleChecks,
+    strategyRuleCounts,
+    createStrategy,
   };
 }
