@@ -355,6 +355,29 @@ export async function getTradeById(
   `, [id]);
 }
 
+export async function getAllTradesWithInstrument(db: SQLiteDatabase): Promise<TradeWithInstrument[]> {
+  return db.getAllAsync<TradeWithInstrument>(`
+    SELECT t.*,
+           i.symbol,
+           i.name   AS instrument_name,
+           i.quote_currency,
+           a.price_mode,
+           i.contract_size,
+           i.asset_class,
+           t.trade_style,
+           t.entry_condition,
+           t.exit_condition,
+           s.name   AS strategy_name,
+           e.name   AS emotion_name
+    FROM   trades t
+    JOIN   accounts a ON a.id = t.account_id
+    JOIN   instruments i ON i.id = t.instrument_id
+    LEFT JOIN strategies s ON s.id = t.strategy_id
+    LEFT JOIN emotions e  ON e.id = t.emotion_id
+    ORDER  BY t.entry_at DESC
+  `);
+}
+
 export async function insertTrade(
   db: SQLiteDatabase,
   trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>

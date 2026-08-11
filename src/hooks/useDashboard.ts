@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
+import { getAllTradesWithInstrument } from '../db/database';
 import { TradeWithInstrument, StatsResult, computeStats } from '../stats/computeStats';
 import { DisplayUnit } from '../lib/format';
 import { useAccountSetting } from './SettingsContext';
@@ -35,26 +36,7 @@ export function useDashboard(): DashboardData {
     setError(null);
     try {
       const [tradesList, goal] = await Promise.all([
-        db.getAllAsync<TradeWithInstrument>(`
-          SELECT t.*,
-                 i.symbol,
-                 i.name   AS instrument_name,
-                 i.quote_currency,
-                 a.price_mode,
-                 i.contract_size,
-                 i.asset_class,
-                 t.trade_style,
-                 t.entry_condition,
-                 t.exit_condition,
-                 s.name   AS strategy_name,
-                 e.name   AS emotion_name
-          FROM   trades t
-          JOIN   accounts a ON a.id = t.account_id
-          JOIN   instruments i ON i.id = t.instrument_id
-          LEFT JOIN strategies s ON s.id = t.strategy_id
-          LEFT JOIN emotions e  ON e.id = t.emotion_id
-          ORDER  BY t.entry_at DESC
-        `),
+        getAllTradesWithInstrument(db),
         db.getFirstAsync<Goal>(`
           SELECT * FROM goals
           WHERE kind = 'profit_goal'
