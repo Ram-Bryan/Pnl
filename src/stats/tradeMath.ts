@@ -23,9 +23,10 @@ export function computeTradePnlInUsd(input: {
   const { direction, entryPrice, exitPrice, lots, contractSize, quoteCurrency, fees, accountType } = input;
   const priceDiff = direction === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice;
   let pnlInQuote = priceDiff * tradeVolume(lots, contractSize, accountType);
-  // Convert non-USD quote currency (e.g. JPY in USDJPY) to USD by the entry rate.
-  if (quoteCurrency && quoteCurrency !== 'USD' && entryPrice > 0) {
-    pnlInQuote /= entryPrice;
+  // Convert non-USD quote currency (e.g. JPY in USDJPY) to USD by the exit
+  // rate — MT5 realizes closed-position profit at the closing exchange rate.
+  if (quoteCurrency && quoteCurrency !== 'USD' && exitPrice > 0) {
+    pnlInQuote /= exitPrice;
   }
   const feesUsd = fees * (accountType === 'cents' ? 0.01 : 1);
   return pnlInQuote - feesUsd;

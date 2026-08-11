@@ -25,6 +25,23 @@ describe('computeTradePnlInUsd', () => {
   it('is 100x larger on a standard account', () => {
     expect(computeTradePnlInUsd({ ...usdJpy, accountType: 'standard' })).toBeCloseTo(-0.10155, 4);
   });
+  it('converts JPY P&L to USD at the exit rate, not the entry rate', () => {
+    const atEntry = computeTradePnlInUsd({
+      ...usdJpy,
+      entryPrice: 157.552,
+      exitPrice: 157.536,
+      accountType: 'cents',
+    });
+    expect(atEntry).toBeCloseTo(-0.16 / 157.536, 6);
+    const atExit = computeTradePnlInUsd({
+      ...usdJpy,
+      direction: 'short',
+      entryPrice: 157.536,
+      exitPrice: 157.552,
+      accountType: 'cents',
+    });
+    expect(atExit).toBeCloseTo(-0.16 / 157.552, 6);
+  });
   it('does not convert when the quote currency is USD', () => {
     const pnl = computeTradePnlInUsd({
       direction: 'long', entryPrice: 1.08, exitPrice: 1.081, lots: 0.1,
@@ -50,5 +67,22 @@ describe('computeInvestedUsd', () => {
   });
   it('uses entry price x volume for USD-quoted pairs (EURUSD)', () => {
     expect(computeInvestedUsd({ entryPrice: 1.08, lots: 0.1, contractSize: 100000, quoteCurrency: 'USD', accountType: 'standard' })).toBeCloseTo(10800, 4);
+  });
+});
+
+describe('MT5 history verification cases (cent account, USC display)', () => {
+  const cases: { name: string; direction: 'long' | 'short'; entry: number; exit: number; lots: number; cents: number }[] = [
+    { name: 'USDJPYc SELL 0.01', direction: 'short', entry: 157.536, exit: 157.552, lots: 0.01, cents: -0.10 },
+    { name: 'EURUSDc BUY 0.01', direction: 'long', entry: 1.15517, exit: 1.15532, lots: 0.01, cents: 0.15 },
+    { name: 'EURUSDc BUY 0.51', direction: 'long', entry: 1.15531, exit: 1.15547, lots: 0.51, cents: 8.16 },
+    { name: 'USDJPYc SELL 0.30', direction: 'short', entry: 157.469, exit: 157.519, lots: 0.30, cents: -9.52 },
+  ];
+
+  cases.forEach(({ name, direction, entry, exit, lots, cents }) => {
+    it(`matches MT5: ${name} -> ${cents} USC`, () => {
+      const quoteCurrency = name.startsWith('USDJPYc') ? 'JPY' : 'USD';
+      const usd = computeTradePnlInUsd({ direction, entryPrice: entry, exitPrice: exit, lots, contractSize: 100000, quoteCurrency, fees: 0, accountType: 'cents' });
+      expect(usd * 100).toBeCloseTo(cents, 2);
+    });
   });
 });

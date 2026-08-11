@@ -18,7 +18,7 @@ types and instruments:
 - `TradeRow`'s "Invested" uses an inconsistent multiplier
   (`accountType === 'cents' ? 0.01 : 1`) and `computeFormPnl` (add-trade preview)
   duplicates P&L logic without cent scaling.
-- The JPY→USD conversion (÷ entry price) only runs when an instrument's
+- The JPY→USD conversion (÷ exit price) only runs when an instrument's
   `quote_currency` is set correctly. A forex symbol added with the default
   `quote_currency = 'USD'` silently skips the conversion.
 
@@ -33,7 +33,7 @@ effectiveContractSize = contract_size × (accountType === 'cents' ? 0.01 : 1)
 volume                = lots × effectiveContractSize          // units of base currency
 priceDiff             = long ? (exit − entry) : (entry − exit)
 pnlInQuote            = priceDiff × volume                    // in quote currency
-pnlUSD                = quote_currency ≠ 'USD' ? pnlInQuote ÷ entry_price : pnlInQuote
+pnlUSD                = quote_currency ≠ 'USD' ? pnlInQuote ÷ exit_price : pnlInQuote
 feesUSD               = fees × (accountType === 'cents' ? 0.01 : 1)   // fees typed in display unit
 pnlUSD              −= feesUSD
 ```
