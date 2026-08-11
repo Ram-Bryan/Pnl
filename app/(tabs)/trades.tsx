@@ -13,7 +13,7 @@ import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { computeTradePnl } from '../../src/stats/computeStats';
-import { AccountType } from '../../src/stats/tradeMath';
+import { DisplayUnit } from '../../src/lib/format';
 import { ASSET_CLASSES, TRADE_STYLES, AssetClassKey, TradeStyle } from '../../src/lib/constants';
 
 type DirectionFilter = 'all' | 'long' | 'short';
@@ -194,7 +194,7 @@ function SectionLabel({ label }: { label: string }) {
 
 // ─── Filter Sheet ────────────────────────────────────────────────────────────
 function FilterSheet({
-  visible, onClose, draft, setDraft, onApply, onClear, accountType,
+  visible, onClose, draft, setDraft, onApply, onClear, displayUnit,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -202,7 +202,7 @@ function FilterSheet({
   setDraft: (f: FilterState) => void;
   onApply: () => void;
   onClear: () => void;
-  accountType: AccountType;
+  displayUnit: DisplayUnit;
 }) {
   const set = useCallback(<K extends keyof FilterState>(key: K, val: FilterState[K]) => {
     setDraft({ ...draft, [key]: val });
@@ -299,11 +299,11 @@ function FilterSheet({
 
         {/* PnL */}
         <View className="mb-8">
-          <SectionLabel label={accountType === 'cents' ? 'Profit & Loss (USC)' : 'Profit & Loss'} />
+          <SectionLabel label={displayUnit === 'usc' ? 'Profit & Loss (USC)' : 'Profit & Loss'} />
           <RangeInput
             minVal={draft.pnlMin} maxVal={draft.pnlMax}
             onMinChange={v => set('pnlMin', v)} onMaxChange={v => set('pnlMax', v)}
-            prefix={accountType === 'cents' ? '' : '$'}
+            prefix={displayUnit === 'usc' ? '' : '$'}
           />
         </View>
 
@@ -355,7 +355,7 @@ export default function Trades() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { trades, loading, refetch } = useTrades();
-  const { accountType } = useAccountSetting();
+  const { accountType, displayUnit } = useAccountSetting();
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -411,8 +411,8 @@ export default function Trades() {
       if (applied.sizeMin && size < parseFloat(applied.sizeMin)) return false;
       if (applied.sizeMax && size > parseFloat(applied.sizeMax)) return false;
 
-      const pnl = computeTradePnl(t, accountType);
-      const pnlUnit = accountType === 'cents' ? 0.01 : 1;
+      const pnl = computeTradePnl(t);
+      const pnlUnit = displayUnit === 'usc' ? 0.01 : 1;
       if (applied.pnlMin && pnl < parseFloat(applied.pnlMin) * pnlUnit) return false;
       if (applied.pnlMax && pnl > parseFloat(applied.pnlMax) * pnlUnit) return false;
 
@@ -431,7 +431,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, search, applied, accountType]);
+  }, [trades, search, applied, displayUnit]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -475,7 +475,7 @@ export default function Trades() {
         setDraft={setDraft}
         onApply={handleApply}
         onClear={handleClear}
-        accountType={accountType}
+        displayUnit={displayUnit}
       />
 
       <Animated.View entering={FadeIn.duration(400)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
@@ -567,6 +567,7 @@ export default function Trades() {
               trade={item}
               index={index}
               accountType={accountType}
+              displayUnit={displayUnit}
               onPress={() => router.push(`/trade/${item.id}`)}
             />
           )}
