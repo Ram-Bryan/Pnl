@@ -14,7 +14,7 @@ import { averageFillPrice, totalQuantity } from '../../src/lib/aggregateFills';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { deleteTrade } from '../../src/db/database';
 import { useTradeDetail } from '../../src/hooks/useTradeDetail';
-import { useSettings } from '../../src/hooks/useSettings';
+import { useAccountSetting } from '../../src/hooks/SettingsContext';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -32,7 +32,7 @@ export default function TradeDetail() {
   const db = useSQLiteContext();
   const parsedId = parseInt(id, 10);
   const { data, error, loading } = useTradeDetail(Number.isNaN(parsedId) ? 0 : parsedId);
-  const { settings } = useSettings();
+  const { accountType } = useAccountSetting();
 
   if (loading) {
     return (
@@ -64,7 +64,7 @@ export default function TradeDetail() {
   const isOpen = trade.status === 'open';
   const assetClass = ASSET_CLASSES.find((c) => c.key === trade.asset_class);
   const styleLabel = TRADE_STYLES.find((s) => s.key === trade.trade_style)?.label;
-  const pnl = computeTradePnl(trade, settings.accountType);
+  const pnl = computeTradePnl(trade, accountType);
 
   function handleDelete() {
     Alert.alert('Delete Trade', 'Are you sure? This cannot be undone.', [
@@ -98,7 +98,7 @@ export default function TradeDetail() {
             <Text className="text-4xl font-black text-neon-amber mb-5" style={{ textShadowColor: 'rgba(255,181,71,0.4)', textShadowRadius: 16 }}>Open</Text>
           ) : (
             <View className="mb-5">
-              <PnlText value={pnl} size="text-5xl" glow accountType={settings.accountType} />
+              <PnlText value={pnl} size="text-5xl" glow accountType={accountType} />
             </View>
           )}
           <View className="flex-row gap-2">

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeStats, computeTradePnl } from './computeStats';
 import type { TradeWithInstrument } from './computeStats';
+import { formatPnl } from '../lib/format';
 
 function makeTrade(overrides: Partial<TradeWithInstrument>): TradeWithInstrument {
   return {
@@ -68,5 +69,29 @@ describe('computeTradePnl', () => {
       contract_size: 100000,
     });
     expect(computeTradePnl(trade, 'cents')).toBeCloseTo(-0.0010155, 6);
+  });
+
+  it('toggling the account type converts every P&L display unit (USC <-> USD)', () => {
+    // Same trade as it appears on the dashboard hero, trade card and detail screen.
+    const trade = makeTrade({
+      symbol: 'USDJPY',
+      quote_currency: 'USD',
+      direction: 'short',
+      entry_price: 157.536,
+      exit_price: 157.552,
+      size: 0.01,
+      contract_size: 100000,
+    });
+
+    const rowCents = computeTradePnl(trade, 'cents');
+    const rowStandard = computeTradePnl(trade, 'standard');
+    expect(formatPnl(rowCents, 'cents')).toBe('0.10 USC');
+    expect(formatPnl(rowStandard, 'standard')).toBe('$0.10');
+
+    // Dashboard hero shows the sum of visible trades; the sum must convert too.
+    const heroCents = computeStats([trade], 'cents').allTimePnl;
+    const heroStandard = computeStats([trade], 'standard').allTimePnl;
+    expect(formatPnl(heroCents, 'cents')).toBe('0.10 USC');
+    expect(formatPnl(heroStandard, 'standard')).toBe('$0.10');
   });
 });

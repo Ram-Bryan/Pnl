@@ -11,7 +11,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { EmptyState, Fab, TradeRow, Segmented } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
-import { useSettings } from '../../src/hooks/useSettings';
+import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { AccountType } from '../../src/stats/tradeMath';
 import { ASSET_CLASSES, TRADE_STYLES, AssetClassKey, TradeStyle } from '../../src/lib/constants';
@@ -355,7 +355,7 @@ export default function Trades() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { trades, loading, refetch } = useTrades();
-  const { settings } = useSettings();
+  const { accountType } = useAccountSetting();
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -411,8 +411,8 @@ export default function Trades() {
       if (applied.sizeMin && size < parseFloat(applied.sizeMin)) return false;
       if (applied.sizeMax && size > parseFloat(applied.sizeMax)) return false;
 
-      const pnl = computeTradePnl(t, settings.accountType);
-      const pnlUnit = settings.accountType === 'cents' ? 0.01 : 1;
+      const pnl = computeTradePnl(t, accountType);
+      const pnlUnit = accountType === 'cents' ? 0.01 : 1;
       if (applied.pnlMin && pnl < parseFloat(applied.pnlMin) * pnlUnit) return false;
       if (applied.pnlMax && pnl > parseFloat(applied.pnlMax) * pnlUnit) return false;
 
@@ -431,7 +431,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, search, applied, settings.accountType]);
+  }, [trades, search, applied, accountType]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -475,7 +475,7 @@ export default function Trades() {
         setDraft={setDraft}
         onApply={handleApply}
         onClear={handleClear}
-        accountType={settings.accountType}
+        accountType={accountType}
       />
 
       <Animated.View entering={FadeIn.duration(400)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
@@ -566,7 +566,7 @@ export default function Trades() {
             <TradeRow
               trade={item}
               index={index}
-              accountType={settings.accountType}
+              accountType={accountType}
               onPress={() => router.push(`/trade/${item.id}`)}
             />
           )}

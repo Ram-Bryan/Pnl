@@ -16,7 +16,7 @@ import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
 import { resolveQuoteCurrency } from '../src/lib/quoteCurrency';
 import { useAddTrade } from '../src/hooks/useAddTrade';
-import { useSettings } from '../src/hooks/useSettings';
+import { useAccountSetting } from '../src/hooks/SettingsContext';
 import { ENTRY_CONDITIONS, EXIT_CONDITIONS } from '../src/lib/constants';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ export default function AddTrade() {
   const tradeId = parsedId != null && !Number.isNaN(parsedId) ? parsedId : undefined;
 
   const { fields, setters, pickers, errors, fillRows, addFill, removeFill, setFill, saving, save, editMode, loading: addTradeLoading, ruleChecks } = useAddTrade({ tradeId });
-  const { settings, loading: settingsLoading } = useSettings();
+  const { accountType, loading: settingsLoading } = useAccountSetting();
 
   const [strategySheetOpen, setStrategySheetOpen] = useState(false);
   const [symbolQuery, setSymbolQuery] = useState('');
@@ -422,7 +422,7 @@ export default function AddTrade() {
               <PnlPreviewCard
                 entryFills={fillRows.entry} exitFills={fillRows.exit}
                 direction={fields.direction} status={fields.status}
-                accountType={settings.accountType} contractSize={contractSize}
+                accountType={accountType} contractSize={contractSize}
                 quoteCurrency={quoteCurrency}
                 fees={parseFloat(fields.fees) || 0}
               />

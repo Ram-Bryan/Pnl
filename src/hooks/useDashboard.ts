@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
 import { TradeWithInstrument, StatsResult, computeStats } from '../stats/computeStats';
 import { AccountType } from '../stats/tradeMath';
-import { getAllSettings } from '../db/database';
+import { useAccountSetting } from './SettingsContext';
 
 type DashboardData = {
   stats: StatsResult;
@@ -24,10 +24,9 @@ const EMPTY_STATS: StatsResult = {
 
 export function useDashboard(): DashboardData {
   const db = useSQLiteContext();
-  const [stats, setStats] = useState<StatsResult>(EMPTY_STATS);
+  const { accountType } = useAccountSetting();
   const [trades, setTrades] = useState<TradeWithInstrument[]>([]);
   const [weeklyGoal, setWeeklyGoal] = useState<Goal | null>(null);
-  const [accountType, setAccountType] = useState<AccountType>('standard');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -35,7 +34,7 @@ export function useDashboard(): DashboardData {
     if (!options?.silent) setLoading(true);
     setError(null);
     try {
-      const [tradesList, goal, rawSettings] = await Promise.all([
+      const [tradesList, goal] = await Promise.all([
         db.getAllAsync<TradeWithInstrument>(`
           SELECT t.*,
                  i.symbol,
@@ -63,12 +62,7 @@ export function useDashboard(): DashboardData {
           ORDER BY effective_from DESC
           LIMIT 1
         `),
-        getAllSettings(db),
       ]);
-
-      const at = (rawSettings['accountType'] as AccountType) || 'standard';
-      setAccountType(at);
-      setStats(computeStats(tradesList, at));
       setTrades(tradesList);
       setWeeklyGoal(goal ?? null);
     } catch (e) {
@@ -81,6 +75,10 @@ export function useDashboard(): DashboardData {
   useEffect(() => { fetch(); }, [fetch]);
 
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
+
+  // Stats are recomputed reactively so the dashboard converts immediately when
+  // the account type is toggled in Settings.
+  const stats = useMemo(() => computeStats(trades, accountType), [trades, accountType]);
 
   return { stats, trades, weeklyGoal, accountType, loading, error, refetch: fetch };
 }

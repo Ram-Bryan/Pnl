@@ -4,20 +4,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useSettings } from '../../src/hooks/useSettings';
+import { useAccountSetting } from '../../src/hooks/SettingsContext';
 
 export default function SettingsTab() {
   const insets = useSafeAreaInsets();
-  const { settings, updateSetting, loading } = useSettings();
+  const { accountType, setAccountType, loading } = useAccountSetting();
 
   if (loading) {
     return <View className="flex-1 items-center justify-center bg-dark-bg"><ActivityIndicator size="large" color="#00E68A" /></View>;
   }
 
-  const isCents = settings.accountType === 'cents';
+  const isCents = accountType === 'cents';
 
   const toggleAccountType = async (value: boolean) => {
-    await updateSetting('accountType', value ? 'cents' : 'standard');
+    await setAccountType(value ? 'cents' : 'standard');
   };
 
   return (
