@@ -18,7 +18,7 @@ export function useTrades() {
                i.symbol,
                i.name   AS instrument_name,
                i.quote_currency,
-               i.price_mode,
+               a.price_mode,
                i.contract_size,
                i.asset_class,
                t.trade_style,
@@ -27,6 +27,7 @@ export function useTrades() {
                s.name   AS strategy_name,
                e.name   AS emotion_name
         FROM   trades t
+        JOIN   accounts a ON a.id = t.account_id
         JOIN   instruments i ON i.id = t.instrument_id
         LEFT JOIN strategies s ON s.id = t.strategy_id
         LEFT JOIN emotions e  ON e.id = t.emotion_id
