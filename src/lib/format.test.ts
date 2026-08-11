@@ -9,17 +9,21 @@ describe('formatPnl', () => {
   it('abbreviates large standard values with k', () => {
     expect(formatPnl(1350)).toBe('$1.4k');
   });
-  it('treats sub-cent standard as zero', () => {
-    expect(formatPnl(0.001)).toBe('$0.00');
+  it('shows sub-cent USD with 3 decimals', () => {
+    expect(formatPnl(0.001)).toBe('$0.001');
+    expect(formatPnl(-0.0010155)).toBe('$0.001');
   });
-  it('displays cents mode as USC (value times 100)', () => {
-    expect(formatPnl(-0.0010155, 'cents')).toBe('0.10 USC');
+  it('shows sub-milli USD with 4 decimals', () => {
+    expect(formatPnl(0.0005)).toBe('$0.0005');
+  });
+  it('displays USC as value times 100', () => {
+    expect(formatPnl(-0.0010155, 'usc')).toBe('0.10 USC');
   });
   it('abbreviates large USC values with k', () => {
-    expect(formatPnl(14.5, 'cents')).toBe('1.4k USC');
+    expect(formatPnl(14.5, 'usc')).toBe('1.4k USC');
   });
   it('shows 2 decimals below 1000 USC', () => {
-    expect(formatPnl(1.8, 'cents')).toBe('180.00 USC');
+    expect(formatPnl(1.8, 'usc')).toBe('180.00 USC');
   });
 });
 

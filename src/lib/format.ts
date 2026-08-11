@@ -1,21 +1,22 @@
+export type DisplayUnit = 'usd' | 'usc';
+
 const moneyFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'standard'): string {
-  const isCents = accountType === 'cents';
-  // value is always real USD. For a cents account, scale up 100x for display in USC.
-  const displayValue = isCents ? value * 100 : value;
-  const rounded = Math.round(displayValue * 100) / 100;
-  const v = Math.abs(rounded);
-  if (isCents) {
+export function formatPnl(value: number, displayUnit: DisplayUnit = 'usd'): string {
+  const isUsc = displayUnit === 'usc';
+  // value is always real USD. USC display scales up 100x.
+  const displayValue = isUsc ? value * 100 : value;
+  const v = Math.abs(displayValue);
+  if (isUsc) {
     if (v >= 1000) return `${(v / 1000).toFixed(1)}k USC`;
     return `${v.toFixed(2)} USC`;
-  } else {
-    if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-    return `$${moneyFormatter.format(v)}`;
   }
+  if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+  const digits = v >= 0.01 ? 2 : v >= 0.001 ? 3 : 4;
+  return `$${v.toFixed(digits)}`;
 }
 
 export function formatMoney(value: number): string {
