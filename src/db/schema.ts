@@ -9,6 +9,7 @@ export type Account = {
   name: string;
   currency: string; // ISO 4217
   starting_balance: number;
+  price_mode: PriceMode;
   created_at: string;
 };
 

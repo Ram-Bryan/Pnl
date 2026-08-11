@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from 'expo-sqlite';
 import {
   Trade,
+  Account,
   AssetClass,
   PriceMode,
   TradeStyle,
@@ -53,6 +54,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       name             TEXT    NOT NULL DEFAULT 'Main',
       currency         TEXT    NOT NULL DEFAULT 'USD',
       starting_balance REAL    NOT NULL DEFAULT 0,
+      price_mode       TEXT    NOT NULL CHECK (price_mode IN ('standard','cents')) DEFAULT 'standard',
       created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
     );
   `);
@@ -223,6 +225,27 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       `INSERT INTO accounts (name, currency, starting_balance) VALUES (?, ?, ?)`,
       ['Main', 'USD', 0]
     );
+  }
+
+  // --- account price_mode (additive; migrates the legacy settings.accountType) ---
+  const accountsCols = await db.getAllAsync<{ name: string }>(
+    `SELECT name FROM pragma_table_info('accounts')`
+  );
+  const hasAccountPriceMode = accountsCols.some((c) => c.name === 'price_mode');
+
+  if (!hasAccountPriceMode) {
+    await db.execAsync(`
+      ALTER TABLE accounts ADD COLUMN price_mode TEXT NOT NULL
+        CHECK (price_mode IN ('standard','cents')) DEFAULT 'standard';
+    `);
+    const legacy = await getSetting(db, 'accountType');
+    if (legacy === 'standard' || legacy === 'cents') {
+      await db.runAsync(
+        `UPDATE accounts SET price_mode = ? WHERE id = (SELECT id FROM accounts ORDER BY id LIMIT 1)`,
+        [legacy]
+      );
+    }
+    await db.runAsync(`DELETE FROM settings WHERE key = 'accountType'`);
   }
 
   // --- v2 upgrade (additive; no-op on fresh installs) ---
@@ -568,6 +591,20 @@ export async function updateInstrument(
 
 export async function deleteInstrument(db: SQLiteDatabase, id: number): Promise<void> {
   await db.runAsync('DELETE FROM instruments WHERE id = ?', [id]);
+}
+
+// ─── Account helpers ─────────────────────────────────────────────────────────
+
+export async function getFirstAccount(db: SQLiteDatabase): Promise<Account | null> {
+  return db.getFirstAsync<Account>('SELECT * FROM accounts ORDER BY id LIMIT 1');
+}
+
+export async function updateAccountPriceMode(
+  db: SQLiteDatabase,
+  id: number,
+  priceMode: PriceMode
+): Promise<void> {
+  await db.runAsync('UPDATE accounts SET price_mode = ? WHERE id = ?', [priceMode, id]);
 }
 
 // ─── Settings helpers ─────────────────────────────────────────────────────────
