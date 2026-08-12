@@ -180,7 +180,7 @@ export default function SymbolsTab() {
                 </View>
                 <View className="flex-1 pr-4">
                   <View className="flex-row items-center gap-x-2 mb-1.5">
-                    <Text className="text-white text-lg font-black tracking-wide">{inst.symbol}</Text>
+                    <Text className="font-bold text-base text-white tracking-wide">{inst.symbol}</Text>
                   </View>
                   <View className="flex-row items-center gap-x-2">
                     <Text className="text-[#8B92A5] text-[11px] font-black uppercase tracking-wider">{inst.asset_class}</Text>

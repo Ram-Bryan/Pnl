@@ -85,7 +85,7 @@ export default function StrategyDetail() {
             <View className="flex-row items-start justify-between mb-3">
               <View className="flex-1 pr-4">
                 <Text className="text-2xl font-black text-white mb-2">{strategy.name}</Text>
-                {strategy.description ? <Text className="text-[#A8AEC1] leading-5">{strategy.description}</Text> : null}
+                {strategy.description ? <Text className="text-[#A8AEC1] leading-5 mb-4">{strategy.description}</Text> : null}
               </View>
               <TouchableOpacity onPress={() => setEditStrategyOpen(true)} className="p-2 bg-[#1a1b24] rounded-xl border border-[#2b2d3a]">
                 <Ionicons name="pencil" size={18} color="#8B92A5" />

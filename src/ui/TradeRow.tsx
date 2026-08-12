@@ -87,12 +87,15 @@ export function TradeRow({
           >
             <Text
               className="text-[9px] font-bold uppercase tracking-widest"
-              style={{ color: isOpen ? '#4D9EFF' : '#00E68A' }}
+              style={{ color: isOpen ? '#FF4D6A' : '#00E68A' }}
             >
               {isOpen ? 'Open' : 'Closed'}
             </Text>
           </View>
         </View>
+
+
+        
       </Pressable>
     </Animated.View>
   );

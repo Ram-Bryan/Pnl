@@ -42,22 +42,40 @@ export default function StrategiesTab() {
                   className="mb-3 bg-dark-card rounded-2xl border border-dark-border p-4"
                   style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
                 >
-<View className="flex-row items-center justify-between">
-                      <View className="flex-1 pr-4">
-                        <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
-                        {st.totalTrades > 0 ? (
-                          <>
-                            <Text className="text-2xl font-black text-white mt-1.5" style={{ fontVariant: ['tabular-nums'] }}>
-                              {st.winRate.toFixed(0)}%
-                            </Text>
-                            <Text className="text-lg text-dark-text-secondary mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1 pr-4">
+                      <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
+                      {st.totalTrades > 0 ? (
+                        <>
+
+                          <View className='flex-row items-center gap-x-2'>
+                            <View
+                              className="py-0.5 rounded-md mt-2"
+                              style={{ backgroundColor: 'rgba(0,230,138,0.1)' }}
+                            ><Text
+                              className="text-[12px] font-bold uppercase tracking-widest"
+                              style={{ color: '#00E68A' }}
+                            >Win rate: {st.winRate.toFixed(0)}%</Text>
+                            </View>
+                          </View>
+
+            
+
+                          <View className="flex-row items-center mt-2">
+                            <Ionicons name='arrow-up-outline' size={13} color="#6b6880" />
+                            <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
                               {st.totalTrades} trades
                             </Text>
-                          </>
-                        ) : (
-                          <Text className="text-2xl font-black text-dark-text-muted mt-1.5">—</Text>
-                        )}
-                      </View>
+                          </View>
+
+
+
+
+                        </>
+                      ) : (
+                        <Text className="text-2xl font-black text-dark-text-muted mt-1.5">—</Text>
+                      )}
+                    </View>
                     <Text
                       className="text-base font-black tracking-wide"
                       style={{ color: st.netPnl >= 0 ? '#00E68A' : '#FF4D6A', fontVariant: ['tabular-nums'] }}
