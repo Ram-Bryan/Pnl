@@ -42,16 +42,13 @@ export default function StrategiesTab() {
                   className="mb-3 bg-dark-card rounded-2xl border border-dark-border p-4"
                   style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
                 >
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-1 pr-4">
-                      <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
-                      {s.description ? (
-                        <Text className="text-xs text-dark-text-muted mt-0.5" numberOfLines={1}>{s.description}</Text>
-                      ) : null}
-                      <Text className="text-xs text-dark-text-secondary mt-1.5" style={{ fontVariant: ['tabular-nums'] }}>
-                        {st.totalTrades > 0 ? `${st.winRate.toFixed(0)}% win rate` : '—'}
-                      </Text>
-                    </View>
+<View className="flex-row items-center justify-between">
+                      <View className="flex-1 pr-4">
+                        <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
+                        <Text className="text-xs font-bold text-dark-text-secondary mt-1.5" style={{ fontVariant: ['tabular-nums'] }}>
+                          {st.totalTrades > 0 ? `${st.winRate.toFixed(0)}% win rate · ${st.totalTrades} trades` : '—'}
+                        </Text>
+                      </View>
                     <Text
                       className="text-base font-black tracking-wide"
                       style={{ color: st.netPnl >= 0 ? '#00E68A' : '#FF4D6A', fontVariant: ['tabular-nums'] }}
