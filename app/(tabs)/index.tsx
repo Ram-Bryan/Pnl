@@ -16,12 +16,11 @@ import Svg, {
   LinearGradient,
   Stop,
   Circle as SvgCircle,
-  G,
   Line,
   Text as SvgText,
 } from 'react-native-svg';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { Card, EmptyState, Fab, PnlText, SectionHeader, Segmented, TradeRow } from '../../src/ui';
+import { Card, EmptyState, Fab, PnlText, SectionHeader, Segmented, TradeRow, WinRateDonut } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useDashboard } from '../../src/hooks/useDashboard';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
@@ -546,66 +545,6 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
   );
 };
 
-// ─── Big Donut for Win Rate ────────────────────────────────────────────────
-// Arc ends use strokeLinecap="butt" (square) per design spec.
-const BigDonut = ({ winRate, wins, losses }: { winRate: number; wins: number; losses: number }) => {
-  const CX = 50, CY = 50, R = 40;
-  const strokeW = 12;
-  const circumference = 2 * Math.PI * R;
-  const winLength = (winRate / 100) * circumference;
-  const lossLength = circumference - winLength;
-
-  return (
-    <View className="items-center justify-center w-full">
-      <View style={{ width: 220, height: 220, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <Svg width={220} height={220} viewBox="0 0 100 100">
-          <G rotation="-90" origin="50, 50">
-            {/* Track */}
-            <SvgCircle cx={CX} cy={CY} r={R} stroke="#1e1e28" strokeWidth={strokeW} fill="transparent" />
-            {/* Loss arc */}
-            <SvgCircle
-              cx={CX} cy={CY} r={R}
-              stroke="#FF4D6A"
-              strokeWidth={strokeW}
-              fill="transparent"
-              strokeDasharray={`${lossLength} ${circumference}`}
-              strokeDashoffset={-winLength}
-              strokeLinecap="butt"
-            />
-            {/* Win arc */}
-            <SvgCircle
-              cx={CX} cy={CY} r={R}
-              stroke="#00E68A"
-              strokeWidth={strokeW}
-              fill="transparent"
-              strokeDasharray={`${winLength} ${circumference}`}
-              strokeLinecap="butt"
-            />
-          </G>
-        </Svg>
-
-        {/* Centre label */}
-        <View className="absolute items-center justify-center" pointerEvents="none">
-          <Text className="text-[9px] uppercase tracking-widest font-bold mb-1" style={{ color: '#6b6880' }}>Win Rate</Text>
-          <Text className="text-3xl font-black text-white">{winRate.toFixed(0)}%</Text>
-        </View>
-      </View>
-
-      {/* Static Legend Block */}
-      <View className="flex-row items-center justify-center mt-2 gap-x-8">
-        <View className="flex-row items-center gap-x-2">
-          <View className="w-3 h-3 rounded-full bg-[#00E68A]" />
-          <Text className="text-xs font-bold text-white tracking-wide">{wins} Wins</Text>
-        </View>
-        <View className="flex-row items-center gap-x-2">
-          <View className="w-3 h-3 rounded-full bg-[#FF4D6A]" />
-          <Text className="text-xs font-bold text-white tracking-wide">{losses} Losses</Text>
-        </View>
-      </View>
-    </View>
-  );
-};
-
 // ─── Dashboard Screen ────────────────────────────────────────────────────────
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
@@ -864,7 +803,7 @@ export default function Dashboard() {
         {/* ─── Big Donut / Win Rate ─── */}
         <Animated.View entering={FadeInDown.duration(500).delay(250)}>
           <Card className="p-6 mb-6 items-center bg-[#10111a]">
-            <BigDonut winRate={stats.winRate} wins={stats.wins} losses={stats.losses} />
+            <WinRateDonut winRate={stats.winRate} wins={stats.wins} losses={stats.losses} />
           </Card>
         </Animated.View>
 

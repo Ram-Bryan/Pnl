@@ -10,3 +10,4 @@ export { Fab } from './Fab';
 export { Sheet } from './Sheet';
 export { TradeRow } from './TradeRow';
 export { StrategyFormSheet } from './StrategyFormSheet';
+export { WinRateDonut } from './WinRateDonut';
