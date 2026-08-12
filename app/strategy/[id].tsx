@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import {
-  Button, Card, SectionHeader, TradeRow, EmptyState, StrategyFormSheet, TextInputField, Sheet,
+  Button, Card, SectionHeader, TradeRow, EmptyState, StrategyFormSheet, TextInputField, Sheet, WinRateDonut,
 } from '../../src/ui';
 import { formatPnl, DisplayUnit } from '../../src/lib/format';
 import { RuleAdherence } from '../../src/stats/strategyStats';
@@ -35,7 +35,7 @@ export default function StrategyDetail() {
   const strategyId = Number.isNaN(parsedId) ? 0 : parsedId;
 
   const { strategy, stats, rules, recentTrades, loading, error, refetch } = useStrategyDetail(strategyId);
-  const { addRule, updateRule, archiveRule, updateStrategy, archiveStrategy } = useStrategies();
+  const { addRule, updateRule, archiveRule, updateStrategy } = useStrategies();
   const { accountType, displayUnit } = useAccountSetting();
 
   const [editStrategyOpen, setEditStrategyOpen] = useState(false);
@@ -75,15 +75,6 @@ export default function StrategyDetail() {
     ]);
   };
 
-  const confirmArchiveStrategy = () => {
-    Alert.alert('Archive Strategy', `Archive "${strategy.name}"? It stays on historical trades.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Archive', style: 'destructive', onPress: async () => { await archiveStrategy(strategy.id); router.back(); } },
-    ]);
-  };
-
-  const pf = stats.profitFactor == null ? '∞' : stats.profitFactor.toFixed(2);
-
   return (
     <View className="flex-1 bg-dark-bg">
       <Stack.Screen options={{ title: 'Strategy' }} />
@@ -107,23 +98,16 @@ export default function StrategyDetail() {
         <Animated.View entering={FadeIn.duration(400).delay(80)}>
           <Card className="p-6 mb-5">
             <SectionHeader title="Performance" />
-            <View className="flex-row flex-wrap gap-3 mt-3">
+            <View className="items-center mt-2 mb-4">
+              <WinRateDonut winRate={stats.winRate} wins={stats.wins} losses={stats.losses} size={150} />
+            </View>
+            <View className="flex-row flex-wrap gap-3">
               <View className="flex-1 min-w-[45%]"><StatCell label="Net P&L" value={fmtSigned(stats.netPnl, displayUnit)} tone={stats.netPnl >= 0 ? 'good' : 'bad'} /></View>
-              <View className="flex-1 min-w-[45%]"><StatCell label="Closed Trades" value={String(stats.totalTrades)} /></View>
-              <View className="flex-1 min-w-[45%]"><StatCell label="Win Rate" value={stats.totalTrades > 0 ? `${stats.winRate.toFixed(1)}%` : '—'} tone={stats.winRate >= 50 ? 'good' : 'bad'} /></View>
-              <View className="flex-1 min-w-[45%]"><StatCell label="Profit Factor" value={pf} /></View>
-              <View className="flex-1 min-w-[45%]"><StatCell label="Expectancy" value={fmtSigned(stats.expectancy, displayUnit)} tone={stats.expectancy >= 0 ? 'good' : 'bad'} /></View>
+              <View className="flex-1 min-w-[45%]"><StatCell label="Trades" value={String(stats.totalTrades)} /></View>
               <View className="flex-1 min-w-[45%]"><StatCell label="Avg Win" value={fmtSigned(stats.avgWin, displayUnit)} /></View>
               <View className="flex-1 min-w-[45%]"><StatCell label="Avg Loss" value={fmtSigned(stats.avgLoss, displayUnit)} tone="bad" /></View>
               <View className="flex-1 min-w-[45%]"><StatCell label="Best Trade" value={fmtSigned(stats.bestTrade, displayUnit)} tone="good" /></View>
               <View className="flex-1 min-w-[45%]"><StatCell label="Worst Trade" value={fmtSigned(stats.worstTrade, displayUnit)} tone="bad" /></View>
-              <View className="flex-1 min-w-[45%]">
-                <StatCell
-                  label="Streak"
-                  value={stats.currentStreak > 0 ? `${stats.currentStreak}W` : stats.currentStreak < 0 ? `${-stats.currentStreak}L` : '—'}
-                  tone={stats.currentStreak > 0 ? 'good' : stats.currentStreak < 0 ? 'bad' : 'neutral'}
-                />
-              </View>
             </View>
           </Card>
         </Animated.View>
@@ -177,8 +161,6 @@ export default function StrategyDetail() {
             </Card>
           </Animated.View>
         )}
-
-        <Button title="Archive Strategy" variant="danger" onPress={confirmArchiveStrategy} />
       </ScrollView>
 
       <StrategyFormSheet
