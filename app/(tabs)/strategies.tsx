@@ -45,9 +45,18 @@ export default function StrategiesTab() {
 <View className="flex-row items-center justify-between">
                       <View className="flex-1 pr-4">
                         <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
-                        <Text className="text-xs font-bold text-dark-text-secondary mt-1.5" style={{ fontVariant: ['tabular-nums'] }}>
-                          {st.totalTrades > 0 ? `${st.winRate.toFixed(0)}% win rate · ${st.totalTrades} trades` : '—'}
-                        </Text>
+                        {st.totalTrades > 0 ? (
+                          <>
+                            <Text className="text-2xl font-black text-white mt-1.5" style={{ fontVariant: ['tabular-nums'] }}>
+                              {st.winRate.toFixed(0)}%
+                            </Text>
+                            <Text className="text-lg text-dark-text-secondary mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>
+                              {st.totalTrades} trades
+                            </Text>
+                          </>
+                        ) : (
+                          <Text className="text-2xl font-black text-dark-text-muted mt-1.5">—</Text>
+                        )}
                       </View>
                     <Text
                       className="text-base font-black tracking-wide"
