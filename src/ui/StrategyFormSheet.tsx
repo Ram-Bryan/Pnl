@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Alert } from 'react-native';
-import { Sheet, Field, TextInputField, Button } from './index';
+import { View, Alert, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { Sheet, Field, TextInputField } from './index';
 
 export function StrategyFormSheet({
   visible,
@@ -54,7 +54,20 @@ export function StrategyFormSheet({
           />
         </Field>
         <View className="pt-2 pb-4">
-          <Button title={saving ? 'Saving…' : 'Save Strategy'} onPress={submit} disabled={saving} />
+          <TouchableOpacity
+            onPress={submit}
+            disabled={saving}
+            activeOpacity={0.8}
+            className="rounded-2xl h-[56px] items-center justify-center flex-row"
+            style={{ backgroundColor: '#2563EB', opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" className="mr-2" />
+            ) : null}
+            <Text className="text-white font-black text-base tracking-wide text-center">
+              {saving ? 'Saving…' : 'Save Strategy'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Sheet>

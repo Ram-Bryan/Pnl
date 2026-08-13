@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { EmptyState, Fab, TradeRow, Segmented } from '../../src/ui';
+import { EmptyState, Fab, TradeRow, Segmented, Pagination } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
@@ -579,29 +579,11 @@ export default function Trades() {
             />
           }
           ListFooterComponent={
-            totalPages > 1 ? (
-              <View className="flex-row items-center justify-center gap-x-4 py-4">
-                <Pressable
-                  onPress={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="w-10 h-10 rounded-xl bg-[#1a1b24] border border-[#2b2d3a] items-center justify-center"
-                  style={{ opacity: page === 1 ? 0.3 : 1 }}
-                >
-                  <Ionicons name="chevron-back" size={16} color="#fff" />
-                </Pressable>
-                <Text className="text-white font-bold text-sm">
-                  {page} / {totalPages}
-                </Text>
-                <Pressable
-                  onPress={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="w-10 h-10 rounded-xl bg-[#1a1b24] border border-[#2b2d3a] items-center justify-center"
-                  style={{ opacity: page === totalPages ? 0.3 : 1 }}
-                >
-                  <Ionicons name="chevron-forward" size={16} color="#fff" />
-                </Pressable>
-              </View>
-            ) : null
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           }
         />
       )}

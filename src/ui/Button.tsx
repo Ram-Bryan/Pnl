@@ -7,6 +7,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const VARIANTS = {
   primary: 'bg-neon-green',
   outline: 'bg-dark-elevated border border-dark-border',
+  'blue-outline': 'bg-dark-elevated border border-[#2563EB]/50',
   ghost: 'bg-transparent',
   danger: 'bg-dark-elevated border border-neon-red/30',
 };
@@ -14,6 +15,7 @@ const VARIANTS = {
 const TEXT_VARIANTS = {
   primary: 'text-dark-bg',
   outline: 'text-neon-green',
+  'blue-outline': 'text-[#2563EB]',
   ghost: 'text-neon-green',
   danger: 'text-neon-red',
 };
