@@ -26,6 +26,8 @@ import { useDashboard } from '../../src/hooks/useDashboard';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { formatMoney, formatPnl, DisplayUnit } from '../../src/lib/format';
 import { computeTradePnl } from '../../src/stats/computeStats';
+import { getGoalHistory, getSetting } from '../../src/db/database';
+import { useSQLiteContext } from 'expo-sqlite';
 import { Ionicons } from '@expo/vector-icons';
 
 type Period = 'today' | 'week' | 'month' | 'all';
@@ -157,6 +159,152 @@ const MonthPicker = ({ visible, onClose, viewDate, onSelectMonth }: any) => {
       </Pressable>
     </Sheet>
   );
+};
+
+// ─── Goal History Sheet ────────────────────────────────────────────────────────
+const GoalHistorySheet = ({ visible, onClose, data, displayUnit }: { visible: boolean, onClose: () => void, data: { weekLabel: string, pnl: number, goal: number | null }[], displayUnit: DisplayUnit }) => {
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Weekly Goal History">
+      <ScrollView className="mt-4 max-h-[60vh]" showsVerticalScrollIndicator={false}>
+        {data.map((item, i) => {
+          if (item.goal === null) return null;
+          const met = item.pnl >= item.goal;
+          return (
+            <View key={i} className="flex-row items-center justify-between bg-[#1a1b24] p-4 rounded-2xl border border-[#2b2d3a] mb-3">
+              <View>
+                <Text className="text-dark-text-secondary text-xs uppercase tracking-widest font-bold mb-1">{item.weekLabel}</Text>
+                <View className="flex-row items-baseline gap-x-2">
+                  <Text className={`text-xl font-black ${item.pnl >= 0 ? 'text-[#00E68A]' : 'text-[#FF4D6A]'}`}>
+                    {formatPnl(item.pnl, displayUnit)}
+                  </Text>
+                  <Text className="text-dark-text-muted text-sm font-semibold">/ {formatPnl(item.goal, displayUnit)}</Text>
+                </View>
+              </View>
+              <View className={`w-10 h-10 rounded-full items-center justify-center ${met ? 'bg-[#00E68A]/10' : 'bg-[#FF4D6A]/10'}`}>
+                <Ionicons name={met ? 'checkmark' : 'close'} size={24} color={met ? '#00E68A' : '#FF4D6A'} />
+              </View>
+            </View>
+          );
+        })}
+        {data.filter(item => item.goal !== null).length === 0 && (
+          <View className="py-8 items-center">
+             <Text className="text-dark-text-muted text-sm">No historical goals found.</Text>
+          </View>
+        )}
+      </ScrollView>
+    </Sheet>
+  );
+};
+
+// ─── Goal Progress Bar ───────────────────────────────────────────────────────
+const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: { weeklyGoal: number, currentWeekPnl: number, displayUnit: DisplayUnit, onPress: () => void }) => {
+  const pnlStr = formatPnl(currentWeekPnl, displayUnit);
+  const isPositive = currentWeekPnl >= 0;
+  const progressPct = Math.min(100, Math.max(0, isPositive ? (currentWeekPnl / weeklyGoal) * 100 : 0));
+  
+  // Goal amount display: show with - if negative, green number without + if positive
+  let goalDisplayStr: string;
+  if (weeklyGoal < 0) {
+    goalDisplayStr = `-${formatPnl(Math.abs(weeklyGoal), displayUnit)}`;
+  } else {
+    goalDisplayStr = `+${formatPnl(weeklyGoal, displayUnit)}`.replace('+', '');
+    // Make positive goal display green
+    // We'll apply green color via the colored pnlStr below, not via the goal string
+  }
+  
+  // Color: green if goal met, blue if in progress, red if in loss
+  const pnlColor = currentWeekPnl < 0 ? '#FF4D6A' : progressPct >= 100 ? '#00E68A' : '#2d7df6';
+  
+  return (
+    <Pressable onPress={onPress}>
+      <Animated.View entering={FadeInDown.duration(500).delay(100)}>
+        <Card className="p-5 mb-6 border border-[#2b2d3a] bg-[#1a1b24]">
+          {/* Top row: left label | right numbers */}
+          <View className="flex-row items-center justify-between mb-4">
+            {/* Left: icon + label */}
+            <View>
+              <View className="flex-row items-center gap-x-2 mb-1">
+                <View className="w-7 h-7 rounded-lg bg-[#2d7df6]/10 items-center justify-center">
+                  <Ionicons name="flag" size={14} color="#2d7df6" />
+                </View>
+                <Text className="text-[11px] text-[#8B92A5] font-bold tracking-widest uppercase">Weekly Goal</Text>
+              </View>
+              <Text className="text-[11px] text-[#555B6E] font-medium ml-9">
+                Tap to see history
+              </Text>
+            </View>
+
+            {/* Right: amount (big, colored) stacked above /goal (small, white) */}
+            <View className="items-end">
+              <Text style={{ color: pnlColor, fontSize: 28, fontWeight: '900', letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
+                {pnlStr}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: -2 }}>
+                {goalDisplayStr}
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress bar */}
+          <View style={{ height: 6, backgroundColor: '#0e0f15', borderRadius: 99, overflow: 'hidden' }}>
+            <View style={{ width: `${progressPct}%`, backgroundColor: pnlColor, height: '100%', borderRadius: 99 }} />
+          </View>
+
+          {currentWeekPnl < 0 && (
+            <Text style={{ fontSize: 10, color: 'rgba(255,77,106,0.75)', fontWeight: '600', marginTop: 8 }}>
+              Currently in drawdown · stay disciplined.
+            </Text>
+          )}
+          {progressPct >= 100 && currentWeekPnl >= 0 && (
+            <Text style={{ fontSize: 10, color: 'rgba(0,230,138,0.75)', fontWeight: '600', marginTop: 8 }}>
+              ✓ Weekly goal achieved!
+            </Text>
+          )}
+        </Card>
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+// ─── Daily Loss Warning ──────────────────────────────────────────────────────
+const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLossLimit: number, todayPnl: number, displayUnit: DisplayUnit }) => {
+  if (todayPnl >= 0 || dailyLossLimit <= 0) return null;
+  
+  const loss = Math.abs(todayPnl);
+  const limit = Math.abs(dailyLossLimit);
+  const currentStr = formatPnl(todayPnl, displayUnit);
+  
+  if (loss >= limit) {
+    return (
+      <Animated.View entering={FadeInDown.duration(400)}>
+        <View className="bg-[rgba(255,77,106,0.15)] border border-[rgba(255,77,106,0.3)] rounded-2xl p-4 mb-6 flex-row items-center">
+          <Ionicons name="warning" size={24} color="#FF4D6A" className="mr-3" />
+          <View className="ml-2 flex-1">
+            <Text className="text-[#FF4D6A] font-black tracking-wide text-sm mb-0.5">Daily Loss Limit Breached</Text>
+            <Text className="text-[#FF4D6A]/90 text-xs font-semibold">You're {currentStr} in loss.</Text>
+            <Text className="text-[#FF4D6A]/70 text-xs font-medium mt-1">You exceeded your limit of {formatPnl(limit, displayUnit)}. Stop trading.</Text>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
+  
+  if (loss >= limit * 0.5) {
+    return (
+      <Animated.View entering={FadeInDown.duration(400)}>
+        <View className="bg-[rgba(245,158,11,0.15)] border border-[rgba(245,158,11,0.3)] rounded-2xl p-4 mb-6 flex-row items-center">
+          <Ionicons name="alert-circle" size={24} color="#f59e0b" className="mr-3" />
+          <View className="ml-2 flex-1">
+            <Text className="text-[#f59e0b] font-black tracking-wide text-sm mb-0.5">Approaching Loss Limit</Text>
+            <Text className="text-[#f59e0b]/90 text-xs font-semibold">You're {currentStr} in loss. stay disciplined.</Text>
+            <Text className="text-[#f59e0b]/70 text-xs font-medium mt-1">You are at {Math.round(loss/limit*100)}% of your daily limit.</Text>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
+  
+  return null;
 };
 
 // ─── Pnl Hero Card ────────────────────────────────────────────────────────────
@@ -548,8 +696,9 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
 // ─── Dashboard Screen ────────────────────────────────────────────────────────
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
   const router = useRouter();
-  const { stats, trades, weeklyGoal, displayUnit, loading, error } = useDashboard();
+  const { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error } = useDashboard();
   const { accountType } = useAccountSetting();
 
   const [period, setPeriod] = useState<Period>('today');
@@ -561,6 +710,64 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<string>(todayLocal);
   const [viewDate, setViewDate] = useState<string>(todayLocal);
   const [pickerVisible, setPickerVisible] = useState(false);
+  
+  const [goalHistoryVisible, setGoalHistoryVisible] = useState(false);
+  const [historicalWeeks, setHistoricalWeeks] = useState<{ weekLabel: string, pnl: number, goal: number | null }[]>([]);
+
+  const openGoalHistory = async () => {
+    try {
+      const history = await getGoalHistory(db, 'profit_goal', 'weekly');
+      const startDateStr = await getSetting(db, 'trading_start_date');
+      
+      let startD = new Date();
+      if (startDateStr) {
+        startD = new Date(startDateStr);
+      } else {
+        // Fallback to 10 weeks ago if not set
+        startD = new Date(Date.now() - 10 * 7 * 24 * 3600 * 1000);
+      }
+      
+      const weeksData = [];
+      const now = new Date();
+      
+      // Calculate how many weeks from startD to now
+      const diffMs = now.getTime() - startD.getTime();
+      const diffWeeks = Math.max(1, Math.ceil(diffMs / (7 * 24 * 3600 * 1000))) + 1; // +1 to ensure today's week is included
+      
+      for (let i = 0; i < diffWeeks; i++) {
+         const d = new Date(now.getTime() - i * 7 * 24 * 3600 * 1000);
+         // if this date 'd' is before startD (excluding the week of startD), break
+         if (d.getTime() < startD.getTime() - 7 * 24 * 3600 * 1000) break;
+         
+         const wDays = getWeekDays(formatYMD(d));
+         const weekStart = wDays[0];
+         const weekEnd = wDays[6];
+         // compute pnl for that week
+         const weekPnL = trades
+           .filter(t => { 
+             const dStr = (t.exit_at ?? t.entry_at).slice(0, 10);
+             return dStr >= weekStart && dStr <= weekEnd;
+           })
+           .reduce((sum, t) => sum + computeTradePnl(t), 0);
+           
+         // find goal active during this week
+         const activeGoal = history.find(g => 
+           g.effective_from <= weekEnd && 
+           (!g.effective_to || g.effective_to >= weekStart)
+         );
+         
+         weeksData.push({
+           weekLabel: `${weekStart.slice(5)} to ${weekEnd.slice(5)}`,
+           pnl: weekPnL,
+           goal: activeGoal ? activeGoal.amount : null,
+         });
+      }
+      setHistoricalWeeks(weeksData);
+      setGoalHistoryVisible(true);
+    } catch(e) {
+      console.error('Failed to load goal history', e);
+    }
+  };
 
   useEffect(() => {
     if (period === 'today') {
@@ -737,6 +944,13 @@ export default function Dashboard() {
           setSelectedDate(newDate);
         }}
       />
+      
+      <GoalHistorySheet
+        visible={goalHistoryVisible}
+        onClose={() => setGoalHistoryVisible(false)}
+        data={historicalWeeks}
+        displayUnit={displayUnit}
+      />
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
 
@@ -754,6 +968,24 @@ export default function Dashboard() {
         <Animated.View entering={FadeInDown.duration(500).delay(50)}>
           <PnlHeroCard pnl={selectedPnl} label={periodLabel} displayUnit={displayUnit} />
         </Animated.View>
+
+        {/* ─── Goal Progress Bar & Loss Warn ─── */}
+        {weeklyGoal && (
+          <GoalProgressBar 
+            weeklyGoal={weeklyGoal.amount} 
+            currentWeekPnl={stats.weekPnl} 
+            displayUnit={displayUnit} 
+            onPress={openGoalHistory} 
+          />
+        )}
+        
+        {dailyLossLimit && (
+          <DailyLossWarning 
+            dailyLossLimit={dailyLossLimit.amount} 
+            todayPnl={stats.todayPnl} 
+            displayUnit={displayUnit} 
+          />
+        )}
 
         {/* ─── Chart Card ─── */}
         <Animated.View entering={FadeInDown.duration(500).delay(150)}>
