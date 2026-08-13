@@ -11,6 +11,7 @@ type DashboardData = {
   stats: StatsResult;
   trades: TradeWithInstrument[];
   weeklyGoal: Goal | null;
+  dailyLossLimit: Goal | null;
   displayUnit: DisplayUnit;
   loading: boolean;
   error: Error | null;
@@ -28,6 +29,7 @@ export function useDashboard(): DashboardData {
   const { displayUnit } = useAccountSetting();
   const [trades, setTrades] = useState<TradeWithInstrument[]>([]);
   const [weeklyGoal, setWeeklyGoal] = useState<Goal | null>(null);
+  const [dailyLossLimit, setDailyLossLimit] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -35,7 +37,7 @@ export function useDashboard(): DashboardData {
     if (!options?.silent) setLoading(true);
     setError(null);
     try {
-      const [tradesList, goal] = await Promise.all([
+      const [tradesList, goal, lossLimit] = await Promise.all([
         getAllTradesWithInstrument(db),
         db.getFirstAsync<Goal>(`
           SELECT * FROM goals
@@ -45,9 +47,18 @@ export function useDashboard(): DashboardData {
           ORDER BY effective_from DESC
           LIMIT 1
         `),
+        db.getFirstAsync<Goal>(`
+          SELECT * FROM goals
+          WHERE kind = 'loss_limit'
+            AND period = 'daily'
+            AND effective_to IS NULL
+          ORDER BY effective_from DESC
+          LIMIT 1
+        `),
       ]);
       setTrades(tradesList);
       setWeeklyGoal(goal ?? null);
+      setDailyLossLimit(lossLimit ?? null);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
@@ -63,5 +74,5 @@ export function useDashboard(): DashboardData {
   // the display unit is toggled in Settings.
   const stats = useMemo(() => computeStats(trades), [trades]);
 
-  return { stats, trades, weeklyGoal, displayUnit, loading, error, refetch: fetch };
+  return { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error, refetch: fetch };
 }

@@ -723,3 +723,52 @@ export async function getSetting(db: SQLiteDatabase, key: string): Promise<strin
 export async function setSetting(db: SQLiteDatabase, key: string, value: string): Promise<void> {
   await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
 }
+
+// ─── Goals helpers ─────────────────────────────────────────────────────────────
+
+export async function upsertGoal(
+  db: SQLiteDatabase,
+  kind: 'profit_goal' | 'loss_limit',
+  period: 'daily' | 'weekly' | 'monthly',
+  amount: number
+): Promise<void> {
+  await db.execAsync('BEGIN TRANSACTION;');
+  try {
+    const account = await getFirstAccount(db);
+    if (!account) throw new Error('No account found');
+
+    // End the current active goal
+    await db.runAsync(
+      `UPDATE goals SET effective_to = date('now')
+       WHERE account_id = ? AND kind = ? AND period = ? AND effective_to IS NULL`,
+      [account.id, kind, period]
+    );
+
+    // Insert new goal
+    await db.runAsync(
+      `INSERT INTO goals (account_id, kind, period, amount, effective_from)
+       VALUES (?, ?, ?, ?, date('now'))`,
+      [account.id, kind, period, amount]
+    );
+    await db.execAsync('COMMIT;');
+  } catch (e) {
+    await db.execAsync('ROLLBACK;');
+    throw e;
+  }
+}
+
+export async function getGoalHistory(
+  db: SQLiteDatabase,
+  kind: 'profit_goal' | 'loss_limit',
+  period: 'daily' | 'weekly' | 'monthly'
+): Promise<{ amount: number; effective_from: string; effective_to: string | null }[]> {
+  const account = await getFirstAccount(db);
+  if (!account) return [];
+  
+  return db.getAllAsync<{ amount: number; effective_from: string; effective_to: string | null }>(
+    `SELECT amount, effective_from, effective_to FROM goals
+     WHERE account_id = ? AND kind = ? AND period = ?
+     ORDER BY effective_from DESC`,
+    [account.id, kind, period]
+  );
+}
