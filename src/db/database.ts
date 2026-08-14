@@ -769,6 +769,78 @@ export async function getGoalHistory(
     `SELECT amount, effective_from, effective_to FROM goals
      WHERE account_id = ? AND kind = ? AND period = ?
      ORDER BY effective_from DESC`,
-    [account.id, kind, period]
+     [account.id, kind, period]
   );
+}
+
+// ============================================================
+// CSV Import — transactional bulk insert
+// ============================================================
+
+import { CsvTradeRow, resolveInstrument, csvRowToTradeDraft, csvRowToFills } from '../lib/csvParser';
+
+export async function importTradesFromCsv(
+  db: SQLiteDatabase,
+  rows: CsvTradeRow[],
+  accountId: number,
+): Promise<{ imported: number; symbols: number }> {
+  let imported = 0;
+  let symbols = 0;
+
+  await db.withTransactionAsync(async () => {
+    for (const row of rows) {
+      const draft = resolveInstrument(row.symbol);
+
+      let instrument = await db.getFirstAsync<{ id: number }>(
+        'SELECT id FROM instruments WHERE symbol = ? AND asset_class = ?',
+        [draft.symbol, draft.asset_class],
+      );
+      if (!instrument) {
+        const result = await db.runAsync(
+          `INSERT INTO instruments (symbol, name, asset_class, quote_currency, price_mode, contract_size, tick_size)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [draft.symbol, draft.name, draft.asset_class, draft.quote_currency, draft.price_mode, draft.contract_size, draft.tick_size],
+        );
+        instrument = { id: result.lastInsertRowId };
+        symbols++;
+      }
+
+      const td = csvRowToTradeDraft(row, accountId, instrument.id);
+      const tradeResult = await db.runAsync(
+        `INSERT INTO trades
+          (account_id, instrument_id, strategy_id, emotion_id,
+           trade_style, entry_condition, exit_condition,
+           direction, status, entry_price, exit_price, size,
+           stop_loss, take_profit, entry_at, exit_at,
+           fees, followed_rules, notes, reflection)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          td.account_id, td.instrument_id,
+          td.strategy_id, td.emotion_id,
+          td.trade_style, td.entry_condition, td.exit_condition,
+          td.direction, td.status,
+          td.entry_price, td.exit_price, td.size,
+          td.stop_loss, td.take_profit,
+          td.entry_at, td.exit_at,
+          td.fees, td.followed_rules,
+          td.notes, td.reflection,
+        ],
+      );
+      const tradeId = tradeResult.lastInsertRowId;
+
+      const fills = csvRowToFills(row);
+      for (let i = 0; i < fills.length; i++) {
+        const f = fills[i];
+        await db.runAsync(
+          `INSERT INTO trade_fills (trade_id, side, price, quantity, note, occurred_at, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [tradeId, f.side, f.price, f.quantity, f.note, f.occurred_at, i],
+        );
+      }
+
+      imported++;
+    }
+  });
+
+  return { imported, symbols };
 }
