@@ -64,7 +64,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       symbol          TEXT NOT NULL,
       name            TEXT,
-      asset_class     TEXT NOT NULL CHECK (asset_class IN ('stock','forex','futures','crypto','option','other')),
+      asset_class     TEXT NOT NULL CHECK (asset_class IN ('equity','fno','crypto','forex','gold','currency')),
       quote_currency  TEXT NOT NULL DEFAULT 'USD',
       price_mode      TEXT NOT NULL CHECK (price_mode IN ('standard','cents')) DEFAULT 'standard',
       contract_size   REAL NOT NULL DEFAULT 1,
@@ -435,6 +435,14 @@ export async function deleteTrade(db: SQLiteDatabase, id: number): Promise<void>
   await db.runAsync('DELETE FROM trades WHERE id = ?', [id]);
 }
 
+export async function deleteTrades(db: SQLiteDatabase, ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(`DELETE FROM trades WHERE id IN (${placeholders})`, ids);
+  });
+}
+
 type FillRow = { side: 'entry' | 'exit'; price: number; quantity: number; note: string | null; occurred_at: string };
 
 export async function getTradeWithFills(
@@ -454,8 +462,11 @@ export async function insertTradeWithFills(
   trade: TradeDraft,
   fills: FillRow[]
 ): Promise<number> {
-  const id = await insertTrade(db, trade);
-  await replaceFills(db, id, fills);
+  let id = 0;
+  await db.withTransactionAsync(async () => {
+    id = await insertTrade(db, trade);
+    await replaceFills(db, id, fills);
+  });
   return id;
 }
 
@@ -477,8 +488,10 @@ export async function updateTradeWithFills(
   trade: TradeDraft,
   fills: FillRow[]
 ): Promise<void> {
-  await updateTrade(db, id, trade);
-  await replaceFills(db, id, fills);
+  await db.withTransactionAsync(async () => {
+    await updateTrade(db, id, trade);
+    await replaceFills(db, id, fills);
+  });
 }
 
 export async function getEmotions(db: SQLiteDatabase): Promise<Emotion[]> {
@@ -530,6 +543,22 @@ export async function updateStrategy(
 
 export async function archiveStrategy(db: SQLiteDatabase, id: number): Promise<void> {
   await db.runAsync("UPDATE strategies SET archived_at = datetime('now') WHERE id = ?", [id]);
+}
+
+export async function deleteStrategy(db: SQLiteDatabase, id: number): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    // Clear rule-check history first: trade_rule_checks has no ON DELETE clause,
+    // and its strategy_rules rows are cascade-removed by the strategies FK below.
+    await db.runAsync(
+      `DELETE FROM trade_rule_checks
+       WHERE strategy_rule_id IN (SELECT id FROM strategy_rules WHERE strategy_id = ?)`,
+      [id]
+    );
+    // Detach the strategy's trades so they survive the deletion.
+    await db.runAsync('UPDATE trades SET strategy_id = NULL WHERE strategy_id = ?', [id]);
+    // strategy_rules are cascade-deleted via the strategies FK.
+    await db.runAsync('DELETE FROM strategies WHERE id = ?', [id]);
+  });
 }
 
 export async function insertStrategyRule(db: SQLiteDatabase, strategyId: number, ruleText: string): Promise<number> {
@@ -607,13 +636,11 @@ export async function saveTradeAssociations(
   tradeId: number,
   associations: {
     strategyId: number | null;
-    emotionId: number | null;
     tagIds: number[];
     ruleChecks: { ruleId: number; checked: 0 | 1 }[];
   }
 ): Promise<void> {
-  await db.execAsync('BEGIN TRANSACTION;');
-  try {
+  await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM trade_tags WHERE trade_id = ?', [tradeId]);
     await db.runAsync('DELETE FROM trade_rule_checks WHERE trade_id = ?', [tradeId]);
     for (const tagId of associations.tagIds) {
@@ -628,11 +655,7 @@ export async function saveTradeAssociations(
         [tradeId, rc.ruleId, rc.checked]
       );
     }
-    await db.execAsync('COMMIT;');
-  } catch (e) {
-    await db.execAsync('ROLLBACK;');
-    throw e;
-  }
+  });
 }
 
 export async function saveTradeScreenshots(
@@ -692,6 +715,14 @@ export async function deleteInstrument(db: SQLiteDatabase, id: number): Promise<
   await db.runAsync('DELETE FROM instruments WHERE id = ?', [id]);
 }
 
+export async function countTradesForInstrument(db: SQLiteDatabase, id: number): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM trades WHERE instrument_id = ?',
+    [id]
+  );
+  return row?.n ?? 0;
+}
+
 // ─── Account helpers ─────────────────────────────────────────────────────────
 
 export async function getFirstAccount(db: SQLiteDatabase): Promise<Account | null> {
@@ -732,8 +763,7 @@ export async function upsertGoal(
   period: 'daily' | 'weekly' | 'monthly',
   amount: number
 ): Promise<void> {
-  await db.execAsync('BEGIN TRANSACTION;');
-  try {
+  await db.withTransactionAsync(async () => {
     const account = await getFirstAccount(db);
     if (!account) throw new Error('No account found');
 
@@ -750,11 +780,7 @@ export async function upsertGoal(
        VALUES (?, ?, ?, ?, date('now'))`,
       [account.id, kind, period, amount]
     );
-    await db.execAsync('COMMIT;');
-  } catch (e) {
-    await db.execAsync('ROLLBACK;');
-    throw e;
-  }
+  });
 }
 
 export async function getGoalHistory(
@@ -783,16 +809,45 @@ export async function importTradesFromCsv(
   db: SQLiteDatabase,
   rows: CsvTradeRow[],
   accountId: number,
-): Promise<{ imported: number; symbols: number }> {
+): Promise<{ imported: number; symbols: number; skipped: number; warnCents: boolean }> {
   let imported = 0;
   let symbols = 0;
+  let skipped = 0;
+  let warnCents = false;
 
   await db.withTransactionAsync(async () => {
+    const account = await getFirstAccount(db);
+    const accountIsCents = account?.price_mode === 'cents';
+    // Tracks tickets seen in this batch so a file containing the same ticket
+    // twice doesn't create duplicates either.
+    const batchTickets = new Set<string>();
+
     for (const row of rows) {
       const draft = resolveInstrument(row.symbol);
 
-      let instrument = await db.getFirstAsync<{ id: number }>(
-        'SELECT id FROM instruments WHERE symbol = ? AND asset_class = ?',
+      // Idempotency: re-importing an MT5 report must not duplicate trades.
+      // The ticket is stored in notes as "MT5 ticket: <ticket>"; skip rows
+      // whose ticket already exists in the DB or earlier in this batch.
+      const ticket = row.ticket.trim();
+      if (ticket) {
+        const existing = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM trades WHERE notes = ? LIMIT 1',
+          [`MT5 ticket: ${ticket}`],
+        );
+        if (existing || batchTickets.has(ticket)) {
+          skipped++;
+          continue;
+        }
+        batchTickets.add(ticket);
+      }
+
+      // A cents-account report (symbols ending in "c") is only priced right if
+      // the account is set to Cents in Settings; the account price_mode drives
+      // P&L math, so surface a warning instead of silently being 100x off.
+      if (draft.price_mode === 'cents' && !accountIsCents) warnCents = true;
+
+      let instrument = await db.getFirstAsync<{ id: number; contract_size: number }>(
+        'SELECT id, contract_size FROM instruments WHERE symbol = ? AND asset_class = ?',
         [draft.symbol, draft.asset_class],
       );
       if (!instrument) {
@@ -801,8 +856,17 @@ export async function importTradesFromCsv(
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [draft.symbol, draft.name, draft.asset_class, draft.quote_currency, draft.price_mode, draft.contract_size, draft.tick_size],
         );
-        instrument = { id: result.lastInsertRowId };
+        instrument = { id: result.lastInsertRowId, contract_size: draft.contract_size };
         symbols++;
+      } else if (instrument.contract_size === 1 && draft.contract_size !== 1) {
+        // Earlier imports defaulted every symbol to contract_size 1, silently
+        // corrupting forex/gold P&L. P&L reads contract_size at render time, so
+        // repairing the instrument retroactively fixes its existing trades.
+        await db.runAsync(
+          'UPDATE instruments SET contract_size = ? WHERE id = ?',
+          [draft.contract_size, instrument.id],
+        );
+        instrument = { ...instrument, contract_size: draft.contract_size };
       }
 
       const td = csvRowToTradeDraft(row, accountId, instrument.id);
@@ -842,5 +906,5 @@ export async function importTradesFromCsv(
     }
   });
 
-  return { imported, symbols };
+  return { imported, symbols, skipped, warnCents };
 }
