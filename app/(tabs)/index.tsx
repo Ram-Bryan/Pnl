@@ -203,9 +203,10 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
   const isPositive = currentWeekPnl >= 0;
   const progressPct = Math.min(100, Math.max(0, isPositive ? (currentWeekPnl / weeklyGoal) * 100 : 0));
   
-  // Goal amount display: no currency symbol, show minus if negative, always white
+  // Goal amount display: unit matches displayUnit (both P&L and goal are in the same unit)
+  const goalUnit = displayUnit === 'usc' ? 'USC' : '$';
   const absGoal = Math.abs(weeklyGoal);
-  const goalDisplayNum = weeklyGoal < 0 ? `-${absGoal.toFixed(2)}` : absGoal.toFixed(2);
+  const goalDisplayNum = weeklyGoal < 0 ? `-${absGoal.toFixed(2)} ${goalUnit}` : `${absGoal.toFixed(2)} ${goalUnit}`;
   
   // Color: green if goal met, blue if in progress, red if in loss
   const pnlColor = currentWeekPnl < 0 ? '#FF4D6A' : progressPct >= 100 ? '#00E68A' : '#2d7df6';

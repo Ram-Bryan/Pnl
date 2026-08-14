@@ -50,29 +50,29 @@ export function NumericInput({
   onChangeText,
   placeholder,
   align = 'right',
+  suffix,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
   align?: 'left' | 'right';
+  suffix?: string;
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <TextInput
-      className={`bg-[#13141a] rounded-xl px-4 h-[52px] text-white font-medium ${
-        align === 'right' ? 'text-right' : ''
-      }`}
-      style={[
-        { borderWidth: 1, borderColor: focused ? '#00E68A' : '#1e1d2b' },
-        { fontVariant: ['tabular-nums'] },
-      ]}
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor="#3e3b4b"
-      keyboardType="decimal-pad"
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-    />
+    <View className="flex-row items-center bg-[#13141a] rounded-xl h-[52px]" style={{ borderWidth: 1, borderColor: focused ? '#00E68A' : '#1e1d2b' }}>
+      <TextInput
+        className={`flex-1 px-4 h-full text-white font-medium ${align === 'right' ? 'text-right' : ''}`}
+        style={[{ fontVariant: ['tabular-nums'] }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#3e3b4b"
+        keyboardType="decimal-pad"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+      {suffix ? <Text className="text-[#6b6880] text-sm font-bold pr-4">{suffix}</Text> : null}
+    </View>
   );
 }

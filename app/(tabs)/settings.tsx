@@ -129,6 +129,8 @@ export default function SettingsTab() {
     await setDisplayUnit(value ? 'usc' : 'usd');
   };
 
+  const accountSuffix = accountType === 'cents' ? 'USC' : '$';
+
   return (
     <View className="flex-1 bg-dark-bg" style={{ paddingTop: insets.top }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -138,18 +140,6 @@ export default function SettingsTab() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}>
-
-          <Animated.View entering={FadeInDown.duration(400).springify()}>
-            <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
-              <View className="flex-row items-center gap-x-2 mb-4">
-                <View className="w-8 h-8 rounded-xl bg-[#2d7df6]/10 border border-[#2d7df6]/20 items-center justify-center">
-                  <Ionicons name="calendar" size={16} color="#2d7df6" />
-                </View>
-                <Text className="text-white font-bold text-base">Trading Start Date</Text>
-              </View>
-              <TradingStartDatePicker value={tradingStartDate} onChange={setTradingStartDate} />
-            </View>
-          </Animated.View>
 
           <Animated.View entering={FadeInDown.duration(400).springify()}>
             <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
@@ -195,9 +185,20 @@ export default function SettingsTab() {
             </View>
           </Animated.View>
 
+          <Animated.View entering={FadeInDown.duration(400).springify()}>
+            <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
+              <View className="flex-row items-center gap-x-2 mb-4">
+                <View className="w-8 h-8 rounded-xl bg-[#2d7df6]/10 border border-[#2d7df6]/20 items-center justify-center">
+                  <Ionicons name="calendar" size={16} color="#2d7df6" />
+                </View>
+                <Text className="text-white font-bold text-base">Trading Start Date</Text>
+              </View>
+              <TradingStartDatePicker value={tradingStartDate} onChange={setTradingStartDate} />
+            </View>
+          </Animated.View>
+
           <Animated.View entering={FadeInDown.duration(400).delay(100).springify()}>
             <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
-              {/* Header */}
               <View className="flex-row items-center gap-x-2 mb-4">
                 <View className="w-8 h-8 rounded-xl bg-[#2d7df6]/10 border border-[#2d7df6]/20 items-center justify-center">
                   <Ionicons name="flag" size={16} color="#2d7df6" />
@@ -205,23 +206,25 @@ export default function SettingsTab() {
                 <Text className="text-white font-bold text-base">Trading Plan</Text>
               </View>
 
-              <Field label={`Weekly Profit Goal (${displayUnit.toUpperCase()})`}>
+              <Field label="Weekly Profit Goal">
                 <NumericInput
                   value={weeklyGoal}
                   onChangeText={setWeeklyGoal}
                   placeholder="0.00"
                   align="left"
+                  suffix={accountSuffix}
                 />
               </Field>
 
               <View className="mt-3" />
 
-              <Field label={`Daily Loss Limit (${displayUnit.toUpperCase()})`}>
+              <Field label="Daily Loss Limit">
                 <NumericInput
                   value={dailyLossLimit}
                   onChangeText={setDailyLossLimit}
                   placeholder="0.00"
                   align="left"
+                  suffix={accountSuffix}
                 />
               </Field>
 
