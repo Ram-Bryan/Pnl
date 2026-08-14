@@ -79,7 +79,7 @@ export default function TradeDetail() {
     quoteCurrency: trade.quote_currency || 'USD',
     accountType,
   });
-  
+
   const returnPct = investedUsd > 0 ? (pnl / investedUsd) * 100 : 0;
   const rr = computeRR(trade.entry_price, trade.stop_loss, trade.take_profit, trade.direction);
 
@@ -117,7 +117,7 @@ export default function TradeDetail() {
               {assetClass?.label ?? trade.asset_class}
             </Text>
           </View>
-          
+
           {isOpen ? (
             <Text className="text-4xl font-black text-neon-amber mb-6" style={{ textShadowColor: 'rgba(255,181,71,0.4)', textShadowRadius: 16 }}>Open</Text>
           ) : (
@@ -125,7 +125,7 @@ export default function TradeDetail() {
               <PnlText value={pnl} size="text-5xl" glow displayUnit={displayUnit} />
               <View className="px-3 py-1.5 rounded mt-4" style={{ backgroundColor: pnlBg }}>
                 <Text style={{ color: pnlColor }} className="text-sm font-bold">
-                  {returnPct > 0 ? '+' : ''}{returnPct.toFixed(2)}% Return
+                  {returnPct > 0 ? '+' : ''}{returnPct.toFixed(3)}% Return
                 </Text>
               </View>
             </View>
@@ -150,11 +150,20 @@ export default function TradeDetail() {
               <DetailRow label="Stop Loss" value={trade.stop_loss != null ? formatPrice(trade.stop_loss) : '—'} />
               <DetailRow label="Take Profit" value={trade.take_profit != null ? formatPrice(trade.take_profit) : '—'} />
               {rr && <DetailRow label="Risk / Reward" value={`1:${rr}`} />}
-              {trade.fees ? <DetailRow label="Fees" value={`$${trade.fees.toFixed(2)}`} /> : null}
+              {trade.fees ? (
+                <DetailRow
+                  label="Fees"
+                  value={
+                    displayUnit === 'usc'
+                      ? `${(trade.fees * (accountType === 'cents' ? 1 : 100)).toFixed(2)} USC`
+                      : `$${(trade.fees * (accountType === 'cents' ? 0.01 : 1)).toFixed(2)}`
+                  }
+                />
+              ) : null}
               <DetailRow label="Entry Condition" value={trade.entry_condition ?? '—'} />
             </View>
           </Card>
-          
+
           {!isOpen && trade.exit_price != null && (
             <Card className="p-6 mb-6">
               <SectionHeader title="Exit Details" />
@@ -204,7 +213,7 @@ export default function TradeDetail() {
                 {tags.length > 0 && (
                   <View className="flex-row flex-wrap gap-2">
                     {tags.map((t) => (
-                      <Chip key={t.id} label={t.name} selected onPress={() => {}} />
+                      <Chip key={t.id} label={t.name} selected onPress={() => { }} />
                     ))}
                   </View>
                 )}
@@ -264,20 +273,20 @@ export default function TradeDetail() {
       {/* Image Modal for zooming */}
       <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
         <View className="flex-1 bg-[#0a0e1a]/95 justify-center items-center">
-          <TouchableOpacity 
-            className="absolute top-0 bottom-0 left-0 right-0" 
-            onPress={() => setSelectedImage(null)} 
+          <TouchableOpacity
+            className="absolute top-0 bottom-0 left-0 right-0"
+            onPress={() => setSelectedImage(null)}
             activeOpacity={1}
           />
           {selectedImage && (
-            <Image 
-              source={{ uri: selectedImage }} 
+            <Image
+              source={{ uri: selectedImage }}
               style={{ width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.7 }}
-              resizeMode="contain" 
+              resizeMode="contain"
             />
           )}
-          <TouchableOpacity 
-            className="absolute top-12 right-6 w-12 h-12 bg-[#1a1b24] rounded-full items-center justify-center border border-[#2b2d3a]" 
+          <TouchableOpacity
+            className="absolute top-12 right-6 w-12 h-12 bg-[#1a1b24] rounded-full items-center justify-center border border-[#2b2d3a]"
             onPress={() => setSelectedImage(null)}
           >
             <Ionicons name="close" size={24} color="#fff" />

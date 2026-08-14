@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity, Alert } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -116,6 +116,7 @@ export default function SettingsTab() {
       }
     } catch (e) {
       console.error('Failed to save plan:', e);
+      Alert.alert('Save Failed', e instanceof Error ? e.message : 'Failed to save your trading plan.');
     } finally {
       setSavingPlan(false);
     }
@@ -147,7 +148,7 @@ export default function SettingsTab() {
               />
               <View className="bg-[#13141a] rounded-xl p-3 border border-[#1e1d2b] mt-3">
                 <Text className="text-[#6b6880] text-[11px] font-medium leading-4">
-                  Account type sets position sizing: cents accounts map lots to 100× smaller positions (MT5 cent-account sizing). Prices and fees are still entered as real values.
+                  Account type sets position sizing: cents accounts map lots to 100× smaller positions (MT5 cent-account sizing). Prices are entered as real values; fees are entered in the account's unit (USC on cents accounts).
                 </Text>
               </View>
             </View>

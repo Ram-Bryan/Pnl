@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Strategy } from '../db/schema';
@@ -38,7 +38,6 @@ export function useStrategyDetail(strategyId: number) {
     }
   }, [db, strategyId]);
 
-  useEffect(() => { fetch(); }, [fetch]);
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   const strategyTrades = useMemo(() => trades.filter((t) => t.strategy_id === strategyId), [trades, strategyId]);

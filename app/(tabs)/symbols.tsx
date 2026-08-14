@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { EmptyState, Fab, Sheet } from '../../src/ui';
 import { Instrument, AssetClass, PriceMode } from '../../src/db/schema';
-import { getInstruments, insertInstrument, deleteInstrument, updateInstrument } from '../../src/db/database';
+import { getInstruments, insertInstrument, deleteInstrument, updateInstrument, countTradesForInstrument } from '../../src/db/database';
 import { ASSET_CLASSES } from '../../src/lib/constants';
 import { inferQuoteCurrency } from '../../src/lib/quoteCurrency';
 
@@ -72,7 +72,7 @@ export default function SymbolsTab() {
   const [contractSize, setContractSize] = useState('1');
   const [saving, setSaving] = useState(false);
 
-  const fetchInstruments = async () => {
+  const fetchInstruments = useCallback(async () => {
     try {
       const data = await getInstruments(db);
       setInstruments(data);
@@ -81,11 +81,14 @@ export default function SymbolsTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db]);
 
   useEffect(() => {
     fetchInstruments();
-  }, [db]);
+  }, [fetchInstruments]);
+
+  // Refetch on every focus so symbols/stats stay in sync after a CSV import.
+  useFocusEffect(useCallback(() => { fetchInstruments(); }, [fetchInstruments]));
 
   const openAdd = () => {
     setEditingId(null);
@@ -144,8 +147,19 @@ export default function SymbolsTab() {
     Alert.alert('Delete Symbol', `Are you sure you want to delete ${sym}?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-          await deleteInstrument(db, id);
-          fetchInstruments();
+          try {
+            // trades.instrument_id has no ON DELETE clause, so a delete would
+            // throw a FK violation — block it instead of crashing.
+            const n = await countTradesForInstrument(db, id);
+            if (n > 0) {
+              Alert.alert('Cannot Delete', `${sym} has ${n} trade${n === 1 ? '' : 's'}. Delete those trades first or keep the symbol.`);
+              return;
+            }
+            await deleteInstrument(db, id);
+            fetchInstruments();
+          } catch (e) {
+            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to delete symbol.');
+          }
       }},
     ]);
   };

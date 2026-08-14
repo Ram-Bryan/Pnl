@@ -17,6 +17,7 @@ import { averageFillPrice, totalQuantity } from '../src/lib/aggregateFills';
 import { computeTradePnlInUsd, AccountType } from '../src/stats/tradeMath';
 import { resolveQuoteCurrency, inferQuoteCurrency } from '../src/lib/quoteCurrency';
 import { insertInstrument } from '../src/db/database';
+import { defaultContractSizeFor } from '../src/lib/csvParser';
 import { Instrument, AssetClass } from '../src/db/schema';
 import { useAddTrade } from '../src/hooks/useAddTrade';
 import { useAccountSetting } from '../src/hooks/SettingsContext';
@@ -246,12 +247,27 @@ function SymbolSheet({ visible, onClose, instruments, onSelect }: {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [symbol, setSymbol] = useState('');
   const [assetClass, setAssetClass] = useState<AssetClass>('forex');
-  const [contractSize, setContractSize] = useState('1');
+  const [contractSize, setContractSize] = useState(String(defaultContractSizeFor('forex')));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (visible) { setQuery(''); setQuickAddOpen(false); setSymbol(''); setContractSize('1'); }
+    if (visible) {
+      setQuery('');
+      setQuickAddOpen(false);
+      setSymbol('');
+      setAssetClass('forex');
+      setContractSize(String(defaultContractSizeFor('forex')));
+    }
   }, [visible]);
+
+  const changeAssetClass = (cls: AssetClass) => {
+    // Only overwrite the contract size if it still matches the previous class's
+    // default; otherwise the user has edited it and we keep their value.
+    if (contractSize === String(defaultContractSizeFor(assetClass))) {
+      setContractSize(String(defaultContractSizeFor(cls)));
+    }
+    setAssetClass(cls);
+  };
 
   const filtered = query.trim().length > 0
     ? instruments.filter((i) => i.symbol.toLowerCase().includes(query.toLowerCase()))
@@ -300,9 +316,13 @@ function SymbolSheet({ visible, onClose, instruments, onSelect }: {
           <View className="mb-2">
             <TextInputField value={symbol} onChangeText={setSymbol} placeholder="e.g. USDJPY" autoCapitalize="characters" />
             <Text className="text-[11px] text-[#6b6880] mt-1 mb-3">Quote currency auto-detected from the symbol (USDJPY → JPY).</Text>
-            <Segmented<AssetClass> options={ASSET_CLASSES.map((a) => ({ key: a.key, label: a.label }))} value={assetClass} onChange={setAssetClass} />
+            <Segmented<AssetClass> options={ASSET_CLASSES.map((a) => ({ key: a.key, label: a.label }))} value={assetClass} onChange={changeAssetClass} />
             <View className="mt-3">
-              <NumericInput value={contractSize} onChangeText={setContractSize} placeholder="Contract size (forex: 100000)" />
+              <NumericInput
+                value={contractSize}
+                onChangeText={setContractSize}
+                placeholder={`Contract size (${assetClass}: ${defaultContractSizeFor(assetClass)})`}
+              />
             </View>
             <View className="mt-3 mb-2">
               <Button title={saving ? 'Saving…' : 'Add & Select'} onPress={saveQuick} disabled={saving} />
@@ -435,7 +455,12 @@ export default function AddTrade() {
 
             <View className="mt-2">
               <Field label="Fees & Commissions">
-                <NumericInput value={fields.fees} onChangeText={setters.setFees} placeholder="0" />
+                <NumericInput
+                  value={fields.fees}
+                  onChangeText={setters.setFees}
+                  placeholder="0"
+                  suffix={accountType === 'cents' ? 'USC' : '$'}
+                />
               </Field>
             </View>
 

@@ -76,19 +76,27 @@ function toDateString(iso: string): string {
   return iso.slice(0, 10);
 }
 
+// Stored dates are naive local ISO (manual entries use local getters), so "today",
+// week start and month must be derived in the device's local time too. Using UTC
+// here shifts P&L into the wrong bucket for users outside UTC around midnight.
+function localYmd(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function getWeekStart(d: Date): string {
   const day = d.getDay();
   const diff = d.getDate() - ((day + 6) % 7); // Monday as week start
   const monday = new Date(d);
   monday.setDate(diff);
-  return monday.toISOString().slice(0, 10);
+  return localYmd(monday);
 }
 
 export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   const now = new Date();
-  const todayStr = toDateString(now.toISOString());
+  const todayStr = localYmd(now);
   const weekStartStr = getWeekStart(now);
-  const monthStr = now.toISOString().slice(0, 7);
+  const monthStr = todayStr.slice(0, 7);
 
   const closed = trades.filter((t) => t.status === 'closed' && t.exit_price != null);
 
@@ -120,11 +128,15 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
       (a, b) => (b.exit_at ?? b.entry_at).localeCompare(a.exit_at ?? a.entry_at)
     );
     const firstPnl = computeTradePnl(sorted[0]);
-    const sign = firstPnl >= 0 ? 1 : -1;
-    for (const t of sorted) {
-      const pnl = computeTradePnl(t);
-      if ((pnl >= 0 ? 1 : -1) !== sign) break;
-      streak += sign;
+    // A zero-P&L trade is neither a win nor a loss and ends any run.
+    if (firstPnl !== 0) {
+      const sign = firstPnl > 0 ? 1 : -1;
+      for (const t of sorted) {
+        const pnl = computeTradePnl(t);
+        if (pnl === 0) break;
+        if ((pnl > 0 ? 1 : -1) !== sign) break;
+        streak += sign;
+      }
     }
   }
 

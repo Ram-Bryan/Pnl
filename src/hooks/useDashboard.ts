@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Goal } from '../db/schema';
@@ -65,8 +65,6 @@ export function useDashboard(): DashboardData {
       setLoading(false);
     }
   }, [db]);
-
-  useEffect(() => { fetch(); }, [fetch]);
 
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 

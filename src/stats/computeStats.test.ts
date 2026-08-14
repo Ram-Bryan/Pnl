@@ -42,6 +42,16 @@ describe('computeStats', () => {
     expect(stats.winRate).toBeCloseTo(33.33, 1);
     expect(stats.currentStreak).toBe(-2);
   });
+
+  it('treats a zero-P&L trade as ending the current streak, not a win', () => {
+    const trades = [
+      makeTrade({ id: 1, entry_price: 100, exit_price: 101 }),
+      makeTrade({ id: 2, entry_price: 100, exit_price: 101, exit_at: '2026-08-02T11:00:00' }),
+      makeTrade({ id: 3, entry_price: 100, exit_price: 100, exit_at: '2026-08-03T11:00:00' }),
+    ];
+    const stats = computeStats(trades);
+    expect(stats.currentStreak).toBe(0);
+  });
 });
 
 describe('computeTradePnl', () => {

@@ -116,12 +116,16 @@ const MonthPicker = ({ visible, onClose, viewDate, onSelectMonth }: any) => {
                 <Pressable
                   key={m}
                   onPress={() => setSelMonth(i)}
-                  style={{ height: ITEM_H, justifyContent: 'center', alignItems: 'center',
+                  style={{
+                    height: ITEM_H, justifyContent: 'center', alignItems: 'center',
                     backgroundColor: selMonth === i ? '#1a3258' : 'transparent',
-                    borderRadius: 12, marginBottom: 2 }}
+                    borderRadius: 12, marginBottom: 2
+                  }}
                 >
-                  <Text style={{ color: selMonth === i ? '#ffffff' : '#6b6880',
-                    fontWeight: selMonth === i ? '800' : '500', fontSize: 15 }}>{m}</Text>
+                  <Text style={{
+                    color: selMonth === i ? '#ffffff' : '#6b6880',
+                    fontWeight: selMonth === i ? '800' : '500', fontSize: 15
+                  }}>{m}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -139,12 +143,16 @@ const MonthPicker = ({ visible, onClose, viewDate, onSelectMonth }: any) => {
                 <Pressable
                   key={y}
                   onPress={() => setSelYear(y)}
-                  style={{ height: ITEM_H, justifyContent: 'center', alignItems: 'center',
+                  style={{
+                    height: ITEM_H, justifyContent: 'center', alignItems: 'center',
                     backgroundColor: selYear === y ? '#1a3258' : 'transparent',
-                    borderRadius: 12, marginBottom: 2 }}
+                    borderRadius: 12, marginBottom: 2
+                  }}
                 >
-                  <Text style={{ color: selYear === y ? '#ffffff' : '#6b6880',
-                    fontWeight: selYear === y ? '800' : '500', fontSize: 15 }}>{y}</Text>
+                  <Text style={{
+                    color: selYear === y ? '#ffffff' : '#6b6880',
+                    fontWeight: selYear === y ? '800' : '500', fontSize: 15
+                  }}>{y}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -189,7 +197,7 @@ const GoalHistorySheet = ({ visible, onClose, data, displayUnit }: { visible: bo
         })}
         {data.filter(item => item.goal !== null).length === 0 && (
           <View className="py-8 items-center">
-             <Text className="text-dark-text-muted text-sm">No historical goals found.</Text>
+            <Text className="text-dark-text-muted text-sm">No historical goals found.</Text>
           </View>
         )}
       </ScrollView>
@@ -203,15 +211,13 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
   const pnlStr = currentWeekPnl < 0 ? `-${formatPnl(Math.abs(currentWeekPnl), displayUnit)}` : formatPnl(currentWeekPnl, displayUnit);
   const isPositive = currentWeekPnl >= 0;
   const progressPct = Math.min(100, Math.max(0, isPositive ? (currentWeekPnl / weeklyGoal) * 100 : 0));
-  
+
   // Goal amount display: unit matches displayUnit (both P&L and goal are in the same unit)
-  const goalUnit = displayUnit === 'usc' ? 'USC' : '$';
-  const absGoal = Math.abs(weeklyGoal);
-  const goalDisplayNum = weeklyGoal < 0 ? `-${absGoal.toFixed(2)} ${goalUnit}` : `${absGoal.toFixed(2)} ${goalUnit}`;
-  
-  // Color: green if goal met, blue if in progress, red if in loss
-  const pnlColor = currentWeekPnl < 0 ? '#FF4D6A' : progressPct >= 100 ? '#00E68A' : '#2d7df6';
-  
+  const goalDisplayNum = formatPnl(weeklyGoal, displayUnit);
+
+  // Color: green if positive, red if in loss
+  const pnlColor = currentWeekPnl < 0 ? '#FF4D6A' : '#00E68A';
+
   return (
     <Pressable onPress={onPress}>
       <Animated.View entering={FadeInDown.duration(500).delay(100)}>
@@ -236,12 +242,12 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
               <Text style={{ color: pnlColor, fontSize: 28, fontWeight: '900', letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
                 {pnlStr}
               </Text>
-              <Text style={{ 
-                color: 'rgba(255,255,255,0.7)', 
-                fontSize: 13, 
-                fontWeight: '600', 
-                fontVariant: ['tabular-nums'], 
-                marginTop: -2 
+              <Text style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 13,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+                marginTop: -2
               }}>
                 / {goalDisplayNum}
               </Text>
@@ -255,7 +261,7 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
 
           {progressPct >= 100 && currentWeekPnl >= 0 && (
             <Text style={{ fontSize: 10, color: 'rgba(0,230,138,0.75)', fontWeight: '600', marginTop: 8 }}>
-              �� Weekly goal achieved!
+              Weekly goal achieved!
             </Text>
           )}
         </Card>
@@ -267,11 +273,11 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
 // ─── Daily Loss Warning ──────────────────────────────────────────────────────
 const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLossLimit: number, todayPnl: number, displayUnit: DisplayUnit }) => {
   if (todayPnl >= 0 || dailyLossLimit <= 0) return null;
-  
+
   const loss = Math.abs(todayPnl);
   const limit = Math.abs(dailyLossLimit);
   const currentStr = formatPnl(todayPnl, displayUnit);
-  
+
   if (loss >= limit) {
     return (
       <Animated.View entering={FadeInDown.duration(400)}>
@@ -286,7 +292,7 @@ const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLoss
       </Animated.View>
     );
   }
-  
+
   if (loss >= limit * 0.5) {
     return (
       <Animated.View entering={FadeInDown.duration(400)}>
@@ -294,13 +300,13 @@ const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLoss
           <Ionicons name="alert-circle" size={24} color="#f59e0b" className="mr-3" />
           <View className="ml-2 flex-1">
             <Text className="text-[#f59e0b] font-black tracking-wide text-sm mb-0.5">Approaching Loss Limit</Text>
-            <Text className="text-[#f59e0b] font-black text-sm">You're {currentStr} in loss. stay disciplined.</Text>
+            <Text className="text-[#f59e0b] font-black text-sm">You're {currentStr} in loss. Stay disciplined.</Text>
           </View>
         </View>
       </Animated.View>
     );
   }
-  
+
   return null;
 };
 
@@ -311,8 +317,8 @@ const PnlHeroCard = ({ pnl, label, displayUnit }: { pnl: number; label: string; 
   const gradientColors = isZero
     ? (['rgba(100,100,120,0.18)', 'rgba(100,100,120,0.05)', 'transparent'] as const)
     : isPositive
-    ? (['rgba(0,230,138,0.25)', 'rgba(0,230,138,0.06)', 'transparent'] as const)
-    : (['rgba(255,77,106,0.25)', 'rgba(255,77,106,0.06)', 'transparent'] as const);
+      ? (['rgba(0,230,138,0.25)', 'rgba(0,230,138,0.06)', 'transparent'] as const)
+      : (['rgba(255,77,106,0.25)', 'rgba(255,77,106,0.06)', 'transparent'] as const);
 
   return (
     <View className="rounded-3xl overflow-hidden border border-dark-border mb-6">
@@ -422,7 +428,7 @@ const MonthlyCalendar = ({ currentMonth, selectedDate, onSelect, dailyPnls, onTi
           {currentMonth.map((d: string) => {
             const pnl = dailyPnls[d] || 0;
             const isSelected = d === selectedDate;
-            const [,, dayNum] = d.split('-');
+            const [, , dayNum] = d.split('-');
             let dotColor = '#2f2c3b';
             if (pnl > 0) dotColor = '#00E68A';
             if (pnl < 0) dotColor = '#FF4D6A';
@@ -507,7 +513,7 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
   const dataValues = points.map(p => p.value);
   const rawMin = Math.min(...dataValues, 0);
   const rawMax = Math.max(...dataValues, 0);
-  
+
   const yTicks = getNiceTicks(rawMin, rawMax, 4);
   const minVal = yTicks[0];
   const maxVal = yTicks[yTicks.length - 1];
@@ -532,7 +538,7 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
 
   const finalPnl = points[n - 1].value;
   const primaryColor = finalPnl > 0 ? '#00E68A' : finalPnl < 0 ? '#FF4D6A' : '#6b6880';
-  
+
   const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
 
   const baseY = PAD_TOP + PLOT_H;
@@ -543,8 +549,8 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
     ` L ${coords[n - 1].x},${baseY} Z`;
 
   return (
-    <View 
-      className="mt-4 w-full h-56 relative" 
+    <View
+      className="mt-4 w-full h-56 relative"
       onLayout={e => setDim({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
     >
       {dim.w > 0 && dim.h > 0 && (
@@ -567,7 +573,7 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
               />
             );
           })}
-          
+
           {/* Zero grid line accent */}
           {isZeroVisible && (
             <Line
@@ -629,7 +635,7 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
             let anchor: "start" | "middle" | "end" = "middle";
             if (tick.pct === 0) anchor = "start";
             if (tick.pct === 1) anchor = "end";
-            
+
             return (
               <SvgText
                 key={`x-${i}`}
@@ -708,7 +714,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<string>(todayLocal);
   const [viewDate, setViewDate] = useState<string>(todayLocal);
   const [pickerVisible, setPickerVisible] = useState(false);
-  
+
   const [goalHistoryVisible, setGoalHistoryVisible] = useState(false);
   const [historicalWeeks, setHistoricalWeeks] = useState<{ weekLabel: string, pnl: number, goal: number | null }[]>([]);
 
@@ -716,7 +722,7 @@ export default function Dashboard() {
     try {
       const history = await getGoalHistory(db, 'profit_goal', 'weekly');
       const startDateStr = await getSetting(db, 'trading_start_date');
-      
+
       let startD = new Date();
       if (startDateStr) {
         startD = new Date(startDateStr);
@@ -724,45 +730,45 @@ export default function Dashboard() {
         // Fallback to 10 weeks ago if not set
         startD = new Date(Date.now() - 10 * 7 * 24 * 3600 * 1000);
       }
-      
+
       const weeksData = [];
       const now = new Date();
-      
+
       // Calculate how many weeks from startD to now
       const diffMs = now.getTime() - startD.getTime();
       const diffWeeks = Math.max(1, Math.ceil(diffMs / (7 * 24 * 3600 * 1000))) + 1; // +1 to ensure today's week is included
-      
+
       for (let i = 0; i < diffWeeks; i++) {
-         const d = new Date(now.getTime() - i * 7 * 24 * 3600 * 1000);
-         // if this date 'd' is before startD (excluding the week of startD), break
-         if (d.getTime() < startD.getTime() - 7 * 24 * 3600 * 1000) break;
-         
-         const wDays = getWeekDays(formatYMD(d));
-         const weekStart = wDays[0];
-         const weekEnd = wDays[6];
-         // compute pnl for that week
-         const weekPnL = trades
-           .filter(t => { 
-             const dStr = (t.exit_at ?? t.entry_at).slice(0, 10);
-             return dStr >= weekStart && dStr <= weekEnd;
-           })
-           .reduce((sum, t) => sum + computeTradePnl(t), 0);
-           
-         // find goal active during this week
-         const activeGoal = history.find(g => 
-           g.effective_from <= weekEnd && 
-           (!g.effective_to || g.effective_to >= weekStart)
-         );
-         
-         weeksData.push({
-           weekLabel: `${weekStart.slice(5)} to ${weekEnd.slice(5)}`,
-           pnl: weekPnL,
-           goal: activeGoal ? activeGoal.amount : null,
-         });
+        const d = new Date(now.getTime() - i * 7 * 24 * 3600 * 1000);
+        // if this date 'd' is before startD (excluding the week of startD), break
+        if (d.getTime() < startD.getTime() - 7 * 24 * 3600 * 1000) break;
+
+        const wDays = getWeekDays(formatYMD(d));
+        const weekStart = wDays[0];
+        const weekEnd = wDays[6];
+        // compute pnl for that week
+        const weekPnL = trades
+          .filter(t => {
+            const dStr = (t.exit_at ?? t.entry_at).slice(0, 10);
+            return dStr >= weekStart && dStr <= weekEnd;
+          })
+          .reduce((sum, t) => sum + computeTradePnl(t), 0);
+
+        // find goal active during this week
+        const activeGoal = history.find(g =>
+          g.effective_from <= weekEnd &&
+          (!g.effective_to || g.effective_to >= weekStart)
+        );
+
+        weeksData.push({
+          weekLabel: `${weekStart.slice(5)} to ${weekEnd.slice(5)}`,
+          pnl: weekPnL,
+          goal: activeGoal ? activeGoal.amount : null,
+        });
       }
       setHistoricalWeeks(weeksData);
       setGoalHistoryVisible(true);
-    } catch(e) {
+    } catch (e) {
       console.error('Failed to load goal history', e);
     }
   };
@@ -807,12 +813,12 @@ export default function Dashboard() {
       const dayMap: Record<string, number> = {};
       const allDays: string[] = [];
       [...trades].reverse().forEach(t => {
-         const day = (t.exit_at ?? t.entry_at).slice(0, 10);
-         if (!dayMap[day]) {
-            dayMap[day] = 0;
-            allDays.push(day);
-         }
-         dayMap[day] += computeTradePnl(t);
+        const day = (t.exit_at ?? t.entry_at).slice(0, 10);
+        if (!dayMap[day]) {
+          dayMap[day] = 0;
+          allDays.push(day);
+        }
+        dayMap[day] += computeTradePnl(t);
       });
       dataset = allDays.map(d => ({ pnl: dayMap[d], timeStr: d }));
     }
@@ -835,8 +841,8 @@ export default function Dashboard() {
       if (points[points.length - 1].pct < 1) {
         points.push({ value: cumulative, tooltip: '24:00', pct: 1 });
       }
-      
-       ticks.push(
+
+      ticks.push(
         { label: '00:00', pct: 0 },
         { label: '06:00', pct: 0.25 },
         { label: '12:00', pct: 0.5 },
@@ -872,14 +878,14 @@ export default function Dashboard() {
 
     // Fix overlap if trades happen at exactly same time (ensure monotonic strict increase)
     for (let i = 1; i < points.length; i++) {
-        if (points[i].pct <= points[i - 1].pct) {
-            points[i].pct = points[i - 1].pct + 0.001;
-        }
+      if (points[i].pct <= points[i - 1].pct) {
+        points[i].pct = points[i - 1].pct + 0.001;
+      }
     }
     // Re-normalize to [0,1] if we pushed anything over 1
     const maxPct = points[points.length - 1]?.pct;
     if (maxPct > 1) {
-        points.forEach(p => p.pct = p.pct / maxPct);
+      points.forEach(p => p.pct = p.pct / maxPct);
     }
 
     return { chartPoints: points, xTicks: ticks };
@@ -942,7 +948,7 @@ export default function Dashboard() {
           setSelectedDate(newDate);
         }}
       />
-      
+
       <GoalHistorySheet
         visible={goalHistoryVisible}
         onClose={() => setGoalHistoryVisible(false)}
@@ -969,19 +975,19 @@ export default function Dashboard() {
 
         {/* ─── Goal Progress Bar & Loss Warn ─── */}
         {weeklyGoal && (
-          <GoalProgressBar 
-            weeklyGoal={weeklyGoal.amount} 
-            currentWeekPnl={stats.weekPnl} 
-            displayUnit={displayUnit} 
-            onPress={openGoalHistory} 
+          <GoalProgressBar
+            weeklyGoal={weeklyGoal.amount}
+            currentWeekPnl={stats.weekPnl}
+            displayUnit={displayUnit}
+            onPress={openGoalHistory}
           />
         )}
-        
+
         {dailyLossLimit && (
-          <DailyLossWarning 
-            dailyLossLimit={dailyLossLimit.amount} 
-            todayPnl={stats.todayPnl} 
-            displayUnit={displayUnit} 
+          <DailyLossWarning
+            dailyLossLimit={dailyLossLimit.amount}
+            todayPnl={stats.todayPnl}
+            displayUnit={displayUnit}
           />
         )}
 

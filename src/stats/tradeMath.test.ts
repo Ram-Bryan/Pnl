@@ -85,4 +85,10 @@ describe('MT5 history verification cases (cent account, USC display)', () => {
       expect(usd * 100).toBeCloseTo(cents, 2);
     });
   });
+
+  it('matches MT5: XAUUSDc BUY 0.01 -> 0.50 USC (gold contract = 100 oz/lot)', () => {
+    // Report value for XAUUSDc 0.01 lot, +0.496 move: profit 0.50 USC.
+    const usd = computeTradePnlInUsd({ direction: 'long', entryPrice: 4349.4, exitPrice: 4349.896, lots: 0.01, contractSize: 100, quoteCurrency: 'USD', fees: 0, accountType: 'cents' });
+    expect(usd * 100).toBeCloseTo(0.50, 2);
+  });
 });
