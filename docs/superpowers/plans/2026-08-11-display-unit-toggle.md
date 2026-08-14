@@ -113,7 +113,7 @@ export function formatPnl(value: number, displayUnit: DisplayUnit = 'usd'): stri
   const v = Math.abs(displayValue);
   if (isUsc) {
     if (v >= 1000) return `${(v / 1000).toFixed(1)}k USC`;
-    return `${v.toFixed(2)} USC`;
+    return `${v.toFixed(3)} USC`;
   }
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
   const digits = v >= 0.01 ? 2 : v >= 0.001 ? 3 : 4;

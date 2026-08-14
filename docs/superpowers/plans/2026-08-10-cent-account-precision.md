@@ -326,7 +326,7 @@ export function formatPnl(value: number, accountType: 'standard' | 'cents' = 'st
   const v = Math.abs(rounded);
   if (isCents) {
     if (v >= 1000) return `${(v / 1000).toFixed(1)}k USC`;
-    return `${v.toFixed(2)} USC`;
+    return `${v.toFixed(3)} USC`;
   }
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
   return `$${moneyFormatter.format(v)}`;

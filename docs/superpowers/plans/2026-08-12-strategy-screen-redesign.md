@@ -291,7 +291,7 @@ This removes Profit Factor, Expectancy, Streak, and the "Closed Trades" cell, an
 Delete:
 
 ```tsx
-const pf = stats.profitFactor == null ? '∞' : stats.profitFactor.toFixed(2);
+const pf = stats.profitFactor == null ? '∞' : stats.profitFactor.toFixed(3);
 ```
 
 - [ ] **Step 6: Delete the archive button**

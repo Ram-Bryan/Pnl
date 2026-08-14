@@ -21,18 +21,18 @@
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `src/stats/strategyStats.ts` (new) | Pure per-strategy stats + rule-adherence math |
-| `src/stats/strategyStats.test.ts` (new) | Unit tests for the above |
-| `src/db/database.ts` | `getAllTradesWithInstrument`, strategy/rule CRUD, `getStrategyRuleCounts`, `getRuleAdherence` |
-| `src/hooks/useStrategies.ts` (new) | Strategies list + stats map + CRUD actions |
-| `src/hooks/useStrategyDetail.ts` (new) | One strategy: stats, rules w/ adherence, recent trades |
-| `src/ui/StrategyFormSheet.tsx` (new) | Shared add/edit strategy form sheet |
-| `app/(tabs)/strategies.tsx` (new) | Strategies tab list |
-| `app/strategy/[id].tsx` (new) | Strategy detail screen |
-| `app/(tabs)/_layout.tsx`, `app/_layout.tsx` | Register tab + route |
-| `src/hooks/useAddTrade.ts`, `app/add-trade.tsx` | Strategy preselection, rule counts, new-strategy flow, symbol Sheet |
+| File                                            | Responsibility                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `src/stats/strategyStats.ts` (new)              | Pure per-strategy stats + rule-adherence math                                                 |
+| `src/stats/strategyStats.test.ts` (new)         | Unit tests for the above                                                                      |
+| `src/db/database.ts`                            | `getAllTradesWithInstrument`, strategy/rule CRUD, `getStrategyRuleCounts`, `getRuleAdherence` |
+| `src/hooks/useStrategies.ts` (new)              | Strategies list + stats map + CRUD actions                                                    |
+| `src/hooks/useStrategyDetail.ts` (new)          | One strategy: stats, rules w/ adherence, recent trades                                        |
+| `src/ui/StrategyFormSheet.tsx` (new)            | Shared add/edit strategy form sheet                                                           |
+| `app/(tabs)/strategies.tsx` (new)               | Strategies tab list                                                                           |
+| `app/strategy/[id].tsx` (new)                   | Strategy detail screen                                                                        |
+| `app/(tabs)/_layout.tsx`, `app/_layout.tsx`     | Register tab + route                                                                          |
+| `src/hooks/useAddTrade.ts`, `app/add-trade.tsx` | Strategy preselection, rule counts, new-strategy flow, symbol Sheet                           |
 
 Existing files to modify: `src/hooks/useDashboard.ts`, `src/hooks/useTrades.ts` (use the extracted query).
 
@@ -1003,7 +1003,7 @@ export default function StrategyDetail() {
     ]);
   };
 
-  const pf = stats.profitFactor == null ? '∞' : stats.profitFactor.toFixed(2);
+  const pf = stats.profitFactor == null ? '∞' : stats.profitFactor.toFixed(3);
 
   return (
     <View className="flex-1 bg-dark-bg">
