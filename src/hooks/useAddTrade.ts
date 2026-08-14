@@ -47,7 +47,6 @@ type FormState = {
   stopLoss: string;
   takeProfit: string;
   strategyId: number | null;
-  emotionId: number | null;
   tagIds: number[];
   emotionIds: number[];
   entryCondition: string | null;
@@ -74,7 +73,6 @@ function createDefaultForm(): FormState {
     stopLoss: '',
     takeProfit: '',
     strategyId: null,
-    emotionId: null,
     tagIds: [],
     emotionIds: [],
     entryCondition: null,
@@ -102,7 +100,11 @@ async function persistScreenshots(uris: string[]): Promise<string[]> {
   if (!dir.exists) dir.create({ idempotent: true, intermediates: true });
   const persisted: string[] = [];
   for (const uri of uris) {
-    const dest = new File(dir, `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+    // Keep the source extension (ImagePicker can return .heic/.png) so the
+    // copied file is renderable on every platform.
+    const ext = (uri.split('.').pop()?.split('?')[0] ?? 'jpg').toLowerCase();
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext) ? ext : 'jpg';
+    const dest = new File(dir, `${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`);
     await new File(uri).copy(dest);
     persisted.push(dest.uri);
   }
@@ -194,7 +196,6 @@ export function useAddTrade({ tradeId, strategyId }: { tradeId?: number; strateg
           stopLoss: trade.stop_loss != null ? String(trade.stop_loss) : '',
           takeProfit: trade.take_profit != null ? String(trade.take_profit) : '',
           strategyId: trade.strategy_id,
-          emotionId: trade.emotion_id,
           tagIds: tradeTagRows.map((t) => t.id),
           emotionIds: trade.emotion_id != null ? [trade.emotion_id] : [],
           entryCondition: trade.entry_condition,
@@ -233,7 +234,6 @@ export function useAddTrade({ tradeId, strategyId }: { tradeId?: number; strateg
   const toggleEmotion = useCallback((id: number) => {
     setFields((f) => ({
       ...f,
-      emotionId: f.emotionId === id ? null : id, // keep single for DB draft
       emotionIds: f.emotionIds.includes(id)
         ? f.emotionIds.filter((e) => e !== id)
         : [...f.emotionIds, id],
@@ -382,7 +382,6 @@ export function useAddTrade({ tradeId, strategyId }: { tradeId?: number; strateg
 
       await saveTradeAssociations(db, tradeIdForSave, {
         strategyId: fields.strategyId,
-        emotionId: fields.emotionId,
         tagIds: fields.tagIds,
         ruleChecks: ruleChecksForSave,
       });
