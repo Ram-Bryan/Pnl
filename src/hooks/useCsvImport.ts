@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { parseCsvRows } from '../lib/csvParser';
 import { importTradesFromCsv, getFirstAccount } from '../db/database';
-import { showError } from '../ui/ErrorModal';
+import { showError, showSuccess } from '../ui/ErrorModal';
 
 export type ImportSummary = {
   count: number;
@@ -62,7 +62,14 @@ export function useCsvImport({ onImported }: UseCsvImportOptions = {}) {
       const result = await importTradesFromCsv(db, rows, account.id);
       setPendingCsv(null);
       await onImported?.();
-      showError({ title: 'Import Complete', message: `${result.imported} trades imported across ${result.symbols} new symbols.` });
+      const skippedNote = result.skipped > 0 ? ` ${result.skipped} already present (skipped).` : '';
+      const centsNote = result.warnCents
+        ? '\n\nNote: your report uses cents symbols (e.g. XAUUSDc). Set Account Type to Cents in Settings so P&L is priced correctly.'
+        : '';
+      showSuccess({
+        title: 'Import Complete',
+        message: `${result.imported} trades imported across ${result.symbols} new symbols.${skippedNote}${centsNote}`,
+      });
     } catch (e) {
       showError({ title: 'Import Failed', message: e instanceof Error ? e.message : 'An error occurred during import.' });
     } finally {

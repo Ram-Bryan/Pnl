@@ -11,3 +11,15 @@ export const showError = ({
     { text: 'OK', style: 'cancel' },
   ]);
 };
+
+export const showSuccess = ({
+  title,
+  message,
+}: {
+  title: string;
+  message: string;
+}) => {
+  Alert.alert(title, message, [
+    { text: 'OK', style: 'default' },
+  ]);
+};

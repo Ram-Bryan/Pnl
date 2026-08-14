@@ -56,8 +56,8 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
 
     rows.push({
       ticket: get('ticket'),
-      opening_time_utc: get('opening_time_utc'),
-      closing_time_utc: get('closing_time_utc'),
+      opening_time_utc: normalizeImportedDateTime(get('opening_time_utc')),
+      closing_time_utc: normalizeImportedDateTime(get('closing_time_utc')),
       type,
       lots: getNum('lots'),
       symbol: get('symbol'),
@@ -109,6 +109,21 @@ const FOREX_PREFIXES = ['EUR', 'GBP', 'USD', 'JPY', 'CHF', 'AUD', 'NZD', 'CAD'];
 const CRYPTO_PREFIXES = ['BTC', 'ETH', 'SOL', 'DOGE', 'ADA', 'XRP', 'BNB', 'DOT', 'AVAX', 'MATIC'];
 const METAL_SYMBOLS = ['XAU', 'XAG', 'XPT', 'XPD'];
 
+// MT5 contract sizes are per asset class (units per 1.0 lot) and are the same
+// on cent accounts. Contract size drives P&L magnitude, so a wrong default here
+// silently makes every imported trade's P&L wrong (e.g. forex at 1 instead of
+// 100000).
+export function defaultContractSizeFor(assetClass: AssetClass): number {
+  if (assetClass === 'forex') return 100000;
+  if (assetClass === 'gold') return 100;
+  return 1;
+}
+
+function contractSizeFor(assetClass: AssetClass, upper: string): number {
+  if (assetClass === 'gold' && upper.startsWith('XAG')) return 5000;
+  return defaultContractSizeFor(assetClass);
+}
+
 export function resolveInstrument(rawSymbol: string): InstrumentDraft {
   const isCents = rawSymbol.toLowerCase().endsWith('c');
   const clean = isCents ? rawSymbol.slice(0, -1) : rawSymbol;
@@ -134,9 +149,32 @@ export function resolveInstrument(rawSymbol: string): InstrumentDraft {
     asset_class: assetClass,
     quote_currency: quoteCurrency,
     price_mode: isCents ? 'cents' : 'standard',
-    contract_size: 1,
+    contract_size: contractSizeFor(assetClass, upper),
     tick_size: null,
   };
+}
+
+// MT5 history exports timestamps as "2024.08.14 09:19:24" (dot separators) in
+// server time. The app stores entry_at/exit_at as naive local ISO
+// (YYYY-MM-DDTHH:mm:ss) — everything from the dashboard buckets to
+// computeStats slices on that exact shape. Normalize so imported trades land in
+// the same day buckets as manual entries. When the column is UTC (the importer's
+// opening_time_utc / closing_time_utc), shift to the device's local wall time so
+// "today" matches what the user sees on their phone.
+export function normalizeImportedDateTime(value: string, isUtc = true): string {
+  const v = value.trim();
+  if (!v) return v;
+  const normalized = v
+    .replace(/^(\d{4})\.(\d{2})\.(\d{2})/, '$1-$2-$3')
+    .replace(' ', 'T');
+  const m = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return v;
+  const [, y, mo, d, h, mi, s] = m;
+  const date = isUtc
+    ? new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +(s ?? 0)))
+    : new Date(+y, +mo - 1, +d, +h, +mi, +(s ?? 0));
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
 }
 
 // ─── Trade Mapping ────────────────────────────────────────────────────────────

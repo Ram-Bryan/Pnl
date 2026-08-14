@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCsvRows, resolveInstrument, csvRowToFills } from './csvParser';
+import { parseCsvRows, resolveInstrument, csvRowToFills, normalizeImportedDateTime, defaultContractSizeFor } from './csvParser';
 
 const SAMPLE_CSV = `ticket,opening_time_utc,closing_time_utc,type,lots,original_position_size,symbol,opening_price,closing_price,stop_loss,take_profit,commission,swap,profit,equity,margin_level,close_reason
 421790567,2026-08-14T09:19:24,2026-08-14T10:31:25,buy,0.01,0.01,XAUUSDc,4349.4,4349.896,4349.896,4361.814,,,0.5,,,sl
@@ -48,6 +48,15 @@ describe('resolveInstrument', () => {
     expect(inst.quote_currency).toBe('USD');
   });
 
+  it('sets MT5 contract sizes per asset class', () => {
+    expect(resolveInstrument('EURUSD').contract_size).toBe(100000);
+    expect(resolveInstrument('USDJPY').contract_size).toBe(100000);
+    expect(resolveInstrument('XAUUSD').contract_size).toBe(100);
+    expect(resolveInstrument('XAGUSD').contract_size).toBe(5000);
+    expect(resolveInstrument('BTCUSD').contract_size).toBe(1);
+    expect(resolveInstrument('AAPL').contract_size).toBe(1);
+  });
+
   it('resolves EURUSD as forex standard', () => {
     const inst = resolveInstrument('EURUSD');
     expect(inst.symbol).toBe('EURUSD');
@@ -64,6 +73,44 @@ describe('resolveInstrument', () => {
   it('resolves AAPL as equity', () => {
     const inst = resolveInstrument('AAPL');
     expect(inst.asset_class).toBe('equity');
+  });
+});
+
+describe('defaultContractSizeFor', () => {
+  it('returns per-asset-class MT5 defaults (shared with the quick-add symbol form)', () => {
+    expect(defaultContractSizeFor('forex')).toBe(100000);
+    expect(defaultContractSizeFor('gold')).toBe(100);
+    expect(defaultContractSizeFor('equity')).toBe(1);
+    expect(defaultContractSizeFor('crypto')).toBe(1);
+  });
+});
+
+describe('normalizeImportedDateTime', () => {
+  it('converts MT5 dot format to ISO date/time', () => {
+    const out = normalizeImportedDateTime('2024.08.14 09:19:24', false);
+    expect(out).toBe('2024-08-14T09:19:24');
+  });
+
+  it('treats ISO input with no timezone as local wall time when not UTC', () => {
+    expect(normalizeImportedDateTime('2026-08-14T09:19:24', false)).toBe('2026-08-14T09:19:24');
+  });
+
+  it('shifts UTC timestamps to local wall time', () => {
+    const expected = new Date(Date.UTC(2026, 7, 14, 9, 19, 24));
+    const p = (n: number) => String(n).padStart(2, '0');
+    const want = `${expected.getFullYear()}-${p(expected.getMonth() + 1)}-${p(expected.getDate())}T${p(expected.getHours())}:${p(expected.getMinutes())}:${p(expected.getSeconds())}`;
+    expect(normalizeImportedDateTime('2026-08-14T09:19:24', true)).toBe(want);
+  });
+
+  it('normalizes parsed rows to ISO day buckets', () => {
+    const rows = parseCsvRows(`ticket,opening_time_utc,closing_time_utc,type,lots,symbol,opening_price,closing_price,commission,swap,close_reason
+1,2024.08.14 09:19:24,2024.08.14 10:31:25,buy,0.01,XAUUSD,100,101,0,0,tp`);
+    expect(rows[0].opening_time_utc.slice(0, 10)).toBe('2024-08-14');
+    expect(rows[0].opening_time_utc).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('leaves unparseable values untouched', () => {
+    expect(normalizeImportedDateTime('not-a-date', true)).toBe('not-a-date');
   });
 });
 
