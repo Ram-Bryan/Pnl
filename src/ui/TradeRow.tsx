@@ -1,10 +1,29 @@
 import React from 'react';
 import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
 import { computeInvestedUsd, AccountType } from '../stats/tradeMath';
 import { formatPnl, DisplayUnit } from '../lib/format';
+
+function SelectionCheckbox({ selected }: { selected: boolean }) {
+  return (
+    <View
+      className="w-6 h-6 rounded-full items-center justify-center"
+      style={{
+        borderWidth: 2,
+        borderColor: selected ? '#4D9EFF' : '#3D4255',
+        backgroundColor: selected ? '#4D9EFF' : 'transparent',
+      }}
+    >
+      {selected && (
+        <Animated.View entering={ZoomIn.springify().damping(14).stiffness(260)}>
+          <Ionicons name="checkmark" size={14} color="#ffffff" />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
 
 export function TradeRow({
   trade,
@@ -12,12 +31,18 @@ export function TradeRow({
   index = 0,
   accountType = 'standard',
   displayUnit = 'usd',
+  selectable = false,
+  selected = false,
+  onLongPress,
 }: {
   trade: TradeWithInstrument;
   onPress: () => void;
   index?: number;
   accountType?: AccountType;
   displayUnit?: DisplayUnit;
+  selectable?: boolean;
+  selected?: boolean;
+  onLongPress?: () => void;
 }) {
   const entryDate = new Date(trade.entry_at).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -46,56 +71,71 @@ export function TradeRow({
     <Animated.View entering={FadeInDown.duration(400).delay(index * 50).springify().damping(18)}>
       <Pressable
         onPress={onPress}
-        className="mb-3 bg-dark-card rounded-2xl border border-dark-border p-4"
-        style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        onLongPress={onLongPress}
+        className="mb-3 rounded-2xl p-4"
+        style={({ pressed }) => [
+          {
+            borderWidth: 1,
+            borderColor: selected ? '#4D9EFF' : '#1F2437',
+            backgroundColor: selected ? 'rgba(77,158,255,0.10)' : '#12162B',
+            opacity: pressed ? 0.75 : selectable && !selected ? 0.55 : 1,
+          },
+        ]}
       >
-        {/* ROW 1: Symbol & Direction | PnL */}
-        <View className="flex-row items-center justify-between mb-2.5">
-          <View className="flex-row items-center gap-x-3">
-            <Text className="font-bold text-base text-white tracking-wide">{trade.symbol}</Text>
-            <View
-              className="px-2 py-0.5 rounded-md border"
-              style={{ borderColor: directionColor, backgroundColor: dirBg }}
-            >
-              <Text style={{ color: directionColor }} className="text-[10px] font-bold uppercase tracking-widest">
-                {trade.direction === 'long' ? 'LONG' : 'SHORT'}
+        <View className="flex-row items-center">
+          {selectable && (
+            <View className="mr-3">
+              <SelectionCheckbox selected={selected} />
+            </View>
+          )}
+
+          <View className="flex-1">
+            {/* ROW 1: Symbol & Direction | PnL */}
+            <View className="flex-row items-center justify-between mb-2.5">
+              <View className="flex-row items-center gap-x-3">
+                <Text className="font-bold text-base text-white tracking-wide">{trade.symbol}</Text>
+                <View
+                  className="px-2 py-0.5 rounded-md border"
+                  style={{ borderColor: directionColor, backgroundColor: dirBg }}
+                >
+                  <Text style={{ color: directionColor }} className="text-[10px] font-bold uppercase tracking-widest">
+                    {trade.direction === 'long' ? 'LONG' : 'SHORT'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ color: pnlColor }} className="text-base font-black tracking-wide">
+                {pnlFormatted}
               </Text>
             </View>
-          </View>
-          <Text style={{ color: pnlColor }} className="text-base font-black tracking-wide">
-            {pnlFormatted}
-          </Text>
-        </View>
 
-        {/* ROW 2: Investment */}
-        <View className="flex-row items-center mb-2.5">
-          <Ionicons name="wallet-outline" size={13} color="#6b6880" />
-          <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
-            Inv: ${Math.round(invested)}
-          </Text>
-        </View>
+            {/* ROW 2: Investment */}
+            <View className="flex-row items-center mb-2.5">
+              <Ionicons name="wallet-outline" size={13} color="#6b6880" />
+              <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
+                Inv: ${Math.round(invested)}
+              </Text>
+            </View>
 
-        {/* ROW 3: Date · Status */}
-        <View className="flex-row items-center gap-x-4">
-          <View className="flex-row items-center gap-x-1">
-            <Ionicons name="calendar-outline" size={12} color="#6b6880" />
-            <Text className="text-[11px] font-medium" style={{ color: '#6b6880' }}>{entryDate}</Text>
-          </View>
-          <View
-            className="px-2 py-0.5 rounded-md"
-            style={{ backgroundColor: isOpen ? 'rgba(77,158,255,0.12)' : 'rgba(0,230,138,0.1)' }}
-          >
-            <Text
-              className="text-[9px] font-bold uppercase tracking-widest"
-              style={{ color: isOpen ? '#FF4D6A' : '#00E68A' }}
-            >
-              {isOpen ? 'Open' : 'Closed'}
-            </Text>
+            {/* ROW 3: Date · Status */}
+            <View className="flex-row items-center gap-x-4">
+              <View className="flex-row items-center gap-x-1">
+                <Ionicons name="calendar-outline" size={12} color="#6b6880" />
+                <Text className="text-[11px] font-medium" style={{ color: '#6b6880' }}>{entryDate}</Text>
+              </View>
+              <View
+                className="px-2 py-0.5 rounded-md"
+                style={{ backgroundColor: isOpen ? 'rgba(77,158,255,0.12)' : 'rgba(0,230,138,0.1)' }}
+              >
+                <Text
+                  className="text-[9px] font-bold uppercase tracking-widest"
+                  style={{ color: isOpen ? '#FF4D6A' : '#00E68A' }}
+                >
+                  {isOpen ? 'Open' : 'Closed'}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
-
-
-        
       </Pressable>
     </Animated.View>
   );

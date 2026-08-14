@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { TradeWithInstrument } from '../stats/computeStats';
-import { getAllTradesWithInstrument } from '../db/database';
+import { getAllTradesWithInstrument, deleteTrades } from '../db/database';
 
 export function useTrades() {
   const db = useSQLiteContext();
@@ -23,9 +23,12 @@ export function useTrades() {
     }
   }, [db]);
 
-  useEffect(() => { fetch(); }, [fetch]);
-
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
-  return { trades, loading, error, refetch: fetch };
+  const removeTrades = useCallback(async (ids: number[]) => {
+    await deleteTrades(db, ids);
+    await fetch({ silent: true });
+  }, [db, fetch]);
+
+  return { trades, loading, error, refetch: fetch, removeTrades };
 }

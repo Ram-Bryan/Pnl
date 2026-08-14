@@ -21,9 +21,9 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
     if (showEllipsis) {
       if (currentPage <= 3) {
         startPage = 1;
-        endPage = 4;
+        endPage = 3;
       } else if (currentPage >= totalPages - 2) {
-        startPage = totalPages - 3;
+        startPage = totalPages - 2;
         endPage = totalPages;
       } else {
         startPage = currentPage - 1;

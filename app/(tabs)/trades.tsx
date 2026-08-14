@@ -1,19 +1,21 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
-  ActivityIndicator, Pressable, ScrollView, KeyboardAvoidingView, Platform, Keyboard,
+  ActivityIndicator, Pressable, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, Vibration,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, FadeOut, SlideInUp } from 'react-native-reanimated';
 import { EmptyState, AddTradeFab, ImportConfirmModal, TradeRow, Segmented, Pagination } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { useCsvImport } from '../../src/hooks/useCsvImport';
 import { computeTradePnl } from '../../src/stats/computeStats';
+import { computeInvestedUsd } from '../../src/stats/tradeMath';
+import { resolveQuoteCurrency } from '../../src/lib/quoteCurrency';
 import { DisplayUnit } from '../../src/lib/format';
 import { ASSET_CLASSES, TRADE_STYLES } from '../../src/lib/constants';
 
@@ -45,39 +47,6 @@ const EMPTY_FILTERS: FilterState = {
 };
 
 const PAGE_SIZE = 10;
-
-// ─── Segmented Switcher ──────────────────────────────────────────────────────
-function FilterSwitch<T extends string>({
-  options, value, onChange, isStatusOrDir = false
-}: { options: { key: T; label: string }[]; value: T; onChange: (v: T) => void, isStatusOrDir?: boolean }) {
-  return (
-    <View className="flex-row bg-[#13141a] rounded-2xl p-1 gap-x-1">
-      {options.map(o => {
-        const isSelected = value === o.key;
-        let selectedColor = '#00E68A';
-        if (isStatusOrDir && isSelected) {
-          if (o.key === 'short' || o.key === 'closed') selectedColor = '#FF4D6A';
-          if (o.key === 'long' || o.key === 'open') selectedColor = '#00E68A';
-        }
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            className="flex-1 py-3 rounded-xl items-center"
-            style={{ backgroundColor: isSelected ? selectedColor : 'transparent' }}
-          >
-            <Text
-              className="font-bold text-sm"
-              style={{ color: isSelected ? (isStatusOrDir && (o.key === 'open' || o.key === 'closed' || o.key === 'all' || o.key === 'long' || o.key === 'short') ? '#13141a' : '#fff') : '#6b6880' }}
-            >
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
 
 // ─── Range Input Pair ────────────────────────────────────────────────────────
 function RangeInput({
@@ -355,7 +324,7 @@ function FilterSheet({
 export default function Trades() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { trades, loading, refetch } = useTrades();
+  const { trades, loading, refetch, removeTrades } = useTrades();
   const { accountType, displayUnit } = useAccountSetting();
   const { importing, summary, pickFile, confirmImport, cancelImport } = useCsvImport({
     onImported: () => refetch(),
@@ -370,6 +339,10 @@ export default function Trades() {
   const [applied, setApplied] = useState<FilterState>(EMPTY_FILTERS);
 
   const [page, setPage] = useState(1);
+
+  // Multi-select
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // All distinct symbols from loaded trades (for autocomplete)
   const allSymbols = useMemo(() => {
@@ -411,9 +384,15 @@ export default function Trades() {
       if (applied.styles.length > 0 && (!t.trade_style || !applied.styles.includes(t.trade_style))) return false;
       if (applied.assets.length > 0 && !applied.assets.includes(t.asset_class)) return false;
 
-      const size = t.entry_price * t.size;
-      if (applied.sizeMin && size < parseFloat(applied.sizeMin)) return false;
-      if (applied.sizeMax && size > parseFloat(applied.sizeMax)) return false;
+      const invested = computeInvestedUsd({
+        entryPrice: t.entry_price,
+        lots: t.size,
+        contractSize: t.contract_size || 1,
+        quoteCurrency: resolveQuoteCurrency(t.symbol, t.quote_currency),
+        accountType,
+      });
+      if (applied.sizeMin && invested < parseFloat(applied.sizeMin)) return false;
+      if (applied.sizeMax && invested > parseFloat(applied.sizeMax)) return false;
 
       const pnl = computeTradePnl(t);
       const pnlUnit = displayUnit === 'usc' ? 0.01 : 1;
@@ -435,7 +414,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, search, applied, displayUnit]);
+  }, [trades, search, applied, displayUnit, accountType]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -470,6 +449,72 @@ export default function Trades() {
     router.push('/add-trade');
   };
 
+  // ─── Multi-select ──────────────────────────────────────────────────────────
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const enterSelection = (id: number) => {
+    Vibration.vibrate(10);
+    setSelectedIds(new Set([id]));
+    setSelectionMode(true);
+  };
+
+  const toggleSelect = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+      Vibration.vibrate(8);
+    }
+    setSelectedIds(next);
+    if (next.size === 0) setSelectionMode(false);
+  };
+
+  const allFilteredSelected = filtered.length > 0 && selectedIds.size === filtered.length;
+
+  const handleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set());
+    } else {
+      Vibration.vibrate(8);
+      setSelectedIds(new Set(filtered.map(t => t.id)));
+    }
+  };
+
+  const requestDelete = () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    Alert.alert(
+      'Delete Trades',
+      `Delete ${count} trade${count === 1 ? '' : 's'}? This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+      ],
+    );
+  };
+
+  const confirmDelete = async () => {
+    const ids = Array.from(selectedIds);
+    exitSelection();
+    try {
+      await removeTrades(ids);
+    } catch (e) {
+      Alert.alert('Delete Failed', e instanceof Error ? e.message : 'Something went wrong.');
+    }
+  };
+
+  // Leaving the screen clears any in-progress selection.
+  useFocusEffect(useCallback(() => {
+    return () => {
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    };
+  }, []));
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-dark-bg"
@@ -486,80 +531,103 @@ export default function Trades() {
         displayUnit={displayUnit}
       />
 
-      <Animated.View entering={FadeIn.duration(400)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-black text-dark-text">Trade History</Text>
-        </View>
-
-        {/* Search bar */}
-        <View className="relative z-20">
-          <View
-            className="flex-row items-center bg-dark-card rounded-2xl px-3 border"
-            style={{ borderColor: searchFocused ? '#00E68A' : '#1F2437' }}
-          >
-            <Ionicons name="search" size={18} color={searchFocused ? '#00E68A' : '#555B6E'} />
-            <TextInput
-              className="flex-1 py-3 px-2 text-dark-text font-medium"
-              placeholder="Search exact symbol…"
-              placeholderTextColor="#555B6E"
-              value={search}
-              onChangeText={handleSearch}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              onFocus={() => { setSearchFocused(true); setShowDropdown(search.length > 0); }}
-              onBlur={() => { setSearchFocused(false); setShowDropdown(false); }}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => { setSearch(''); setShowDropdown(false); setPage(1); }} className="mr-2">
-                <Ionicons name="close-circle" size={18} color="#8B92A5" />
-              </TouchableOpacity>
-            )}
-            {/* Filter button */}
-            <Pressable
-              onPress={() => { setDraft(applied); setFilterOpen(true); }}
-              className="w-10 h-10 rounded-xl items-center justify-center ml-1"
-            >
-              <Ionicons name="options" size={20} color="#8B92A5" />
+      {selectionMode ? (
+        <Animated.View
+          entering={FadeInDown.duration(250).springify().damping(18)}
+          exiting={FadeOut.duration(150)}
+          className="px-2 pt-3 pb-2"
+          style={{ zIndex: 50 }}
+        >
+          <View className="flex-row items-center justify-between">
+            <Pressable onPress={exitSelection} hitSlop={12} className="w-10 h-10 items-center justify-center">
+              <Ionicons name="chevron-back" size={26} color="#F0F2F5" />
+            </Pressable>
+            <Text className="text-lg font-black text-white">{selectedIds.size} selected</Text>
+            <Pressable onPress={handleSelectAll} hitSlop={12} className="px-2 py-2">
+              <Text className="text-sm font-black" style={{ color: '#4D9EFF' }}>
+                {allFilteredSelected ? 'Deselect All' : 'Select All'}
+              </Text>
             </Pressable>
           </View>
+        </Animated.View>
+      ) : (
+        <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(150)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-2xl font-black text-dark-text">Trade History</Text>
+          </View>
 
-          {/* Autocomplete dropdown */}
-          {showDropdown && (suggestions.length > 0) && (
-            <>
-              <Pressable 
-                onPress={() => { setShowDropdown(false); setSearchFocused(false); Keyboard.dismiss(); }} 
-                style={{ position: 'absolute', top: 0, left: -100, right: -100, bottom: -1000, zIndex: 999 }}
+          {/* Search bar */}
+          <View className="relative z-20">
+            <View
+              className="flex-row items-center bg-dark-card rounded-2xl px-3 border"
+              style={{ borderColor: searchFocused ? '#00E68A' : '#1F2437' }}
+            >
+              <Ionicons name="search" size={18} color={searchFocused ? '#00E68A' : '#555B6E'} />
+              <TextInput
+                className="flex-1 py-3 px-2 text-dark-text font-medium"
+                placeholder="Search exact symbol…"
+                placeholderTextColor="#555B6E"
+                value={search}
+                onChangeText={handleSearch}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                onFocus={() => { setSearchFocused(true); setShowDropdown(search.length > 0); }}
+                onBlur={() => { setSearchFocused(false); setShowDropdown(false); }}
               />
-              <View
-                className="absolute left-0 right-0 top-full mt-1 bg-[#1a1b24] rounded-2xl border border-[#2b2d3a] overflow-hidden"
-                style={{ zIndex: 1000, elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => { setSearch(''); setShowDropdown(false); setPage(1); }} className="mr-2">
+                  <Ionicons name="close-circle" size={18} color="#8B92A5" />
+                </TouchableOpacity>
+              )}
+              {/* Filter button */}
+              <Pressable
+                onPress={() => { setDraft(applied); setFilterOpen(true); }}
+                className="w-10 h-10 rounded-xl items-center justify-center ml-1"
               >
-                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 250 }}>
-                  {suggestions.map(sym => (
-                    <Pressable
-                      key={sym}
-                      onPress={() => selectSymbol(sym)}
-                      className="px-5 py-4 border-b border-[#2b2d3a]"
-                    >
-                      <Text className="text-white font-bold text-base tracking-wide">{sym}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            </>
-          )}
-        </View>
-      </Animated.View>
+                <Ionicons name="options" size={20} color="#8B92A5" />
+              </Pressable>
+            </View>
+
+            {/* Autocomplete dropdown */}
+            {showDropdown && (suggestions.length > 0) && (
+              <>
+                <Pressable 
+                  onPress={() => { setShowDropdown(false); setSearchFocused(false); Keyboard.dismiss(); }} 
+                  style={{ position: 'absolute', top: 0, left: -100, right: -100, bottom: -1000, zIndex: 999 }}
+                />
+                <View
+                  className="absolute left-0 right-0 top-full mt-1 bg-[#1a1b24] rounded-2xl border border-[#2b2d3a] overflow-hidden"
+                  style={{ zIndex: 1000, elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
+                >
+                  <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 250 }}>
+                    {suggestions.map(sym => (
+                      <Pressable
+                        key={sym}
+                        onPress={() => selectSymbol(sym)}
+                        className="px-5 py-4 border-b border-[#2b2d3a]"
+                      >
+                        <Text className="text-white font-bold text-base tracking-wide">{sym}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            )}
+          </View>
+        </Animated.View>
+      )}
 
       {/* Results count */}
-      <View className="px-4 mt-2 mb-6 flex-row items-center justify-between">
-        <Text className="text-dark-text-muted font-bold tracking-widest">
-          {filtered.length} trade{filtered.length !== 1 ? 's' : ''}
-        </Text>
-        <Pressable onPress={() => { setApplied(EMPTY_FILTERS); setDraft(EMPTY_FILTERS); setPage(1); }}>
-          <Text className="text-[12px] text-dark-text-muted font-black uppercase tracking-wider">Clear filters</Text>
-        </Pressable>
-      </View>
+      {!selectionMode && (
+        <View className="px-4 mt-2 mb-6 flex-row items-center justify-between">
+          <Text className="text-dark-text-muted font-bold tracking-widest">
+            {filtered.length} trade{filtered.length !== 1 ? 's' : ''}
+          </Text>
+          <Pressable onPress={() => { setApplied(EMPTY_FILTERS); setDraft(EMPTY_FILTERS); setPage(1); }}>
+            <Text className="text-[12px] text-dark-text-muted font-black uppercase tracking-wider">Clear filters</Text>
+          </Pressable>
+        </View>
+      )}
 
       {loading && trades.length === 0 ? (
         <View className="flex-1 items-center justify-center">
@@ -578,7 +646,10 @@ export default function Trades() {
               index={index}
               accountType={accountType}
               displayUnit={displayUnit}
-              onPress={() => router.push(`/trade/${item.id}`)}
+              selectable={selectionMode}
+              selected={selectedIds.has(item.id)}
+              onPress={() => selectionMode ? toggleSelect(item.id) : router.push(`/trade/${item.id}`)}
+              onLongPress={() => selectionMode ? toggleSelect(item.id) : enterSelection(item.id)}
             />
           )}
           ListEmptyComponent={
@@ -598,7 +669,29 @@ export default function Trades() {
         />
       )}
 
-      <AddTradeFab onAddManual={handleAddManual} onImport={pickFile} />
+      {!selectionMode && (
+        <AddTradeFab onAddManual={handleAddManual} onImport={pickFile} />
+      )}
+
+      {selectionMode && (
+        <Animated.View
+          entering={SlideInUp.springify().damping(20).stiffness(180)}
+          className="absolute left-4 right-4 bottom-6 flex-row items-center justify-center rounded-2xl px-4 py-3"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 8, zIndex: 40 }}
+        >
+          <Pressable
+            onPress={requestDelete}
+            disabled={selectedIds.size === 0}
+            className="flex-row items-center gap-2 px-4 py-2.5 rounded-xl"
+            style={{ backgroundColor: '#FF4D6A', opacity: selectedIds.size === 0 ? 0.5 : 1 }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#ffffff" />
+            <Text className="text-white font-bold">Delete</Text>
+          </Pressable>
+
+
+        </Animated.View>
+      )}
 
       <ImportConfirmModal
         summary={summary}

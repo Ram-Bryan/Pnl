@@ -39,7 +39,7 @@ export function Fab({ onPress, active = false }: FabProps) {
         },
       ]}
     >
-      <Ionicons name={active ? 'close' : 'add'} size={28} color="white" />
+      <Ionicons name={active ? 'close' : 'add'} size={28} color="black" />
     </AnimatedPressable>
   );
 }

@@ -30,7 +30,7 @@ export function AddTradeFab({ onAddManual, onImport }: AddTradeFabProps) {
         />
       )}
 
-      <View className="absolute bottom-6 right-6" style={{ zIndex: 50 }}>
+      <View className="absolute bottom-6 right-6 items-end" style={{ zIndex: 50 }}>
         {open && (
           <View className="items-end mb-3 gap-2">
             <Animated.View entering={FadeInDown.duration(200).springify().damping(16)}>
