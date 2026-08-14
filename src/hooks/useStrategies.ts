@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Strategy } from '../db/schema';
@@ -8,6 +8,7 @@ import {
   insertStrategy as insertStrategyDb,
   updateStrategy as updateStrategyDb,
   archiveStrategy as archiveStrategyDb,
+  deleteStrategy as deleteStrategyDb,
   insertStrategyRule as insertStrategyRuleDb,
   updateStrategyRule as updateStrategyRuleDb,
   archiveStrategyRule as archiveStrategyRuleDb,
@@ -41,7 +42,6 @@ export function useStrategies() {
     }
   }, [db]);
 
-  useEffect(() => { fetch(); }, [fetch]);
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   const statsByStrategy = useMemo(() => {
@@ -65,6 +65,11 @@ export function useStrategies() {
     await fetch({ silent: true });
   }, [db, fetch]);
 
+  const deleteStrategy = useCallback(async (id: number) => {
+    await deleteStrategyDb(db, id);
+    await fetch({ silent: true });
+  }, [db, fetch]);
+
   const addRule = useCallback(async (strategyId: number, ruleText: string) => {
     await insertStrategyRuleDb(db, strategyId, ruleText);
     await fetch({ silent: true });
@@ -83,6 +88,6 @@ export function useStrategies() {
   return {
     strategies, statsByStrategy, loading, error,
     refetch: fetch,
-    addStrategy, updateStrategy, archiveStrategy, addRule, updateRule, archiveRule,
+    addStrategy, updateStrategy, archiveStrategy, deleteStrategy, addRule, updateRule, archiveRule,
   };
 }

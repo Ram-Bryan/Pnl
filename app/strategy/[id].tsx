@@ -35,7 +35,7 @@ export default function StrategyDetail() {
   const strategyId = Number.isNaN(parsedId) ? 0 : parsedId;
 
   const { strategy, stats, rules, recentTrades, loading, error, refetch } = useStrategyDetail(strategyId);
-  const { addRule, updateRule, archiveRule, updateStrategy } = useStrategies();
+  const { addRule, updateRule, archiveRule, updateStrategy, deleteStrategy } = useStrategies();
   const { accountType, displayUnit } = useAccountSetting();
 
   const [editStrategyOpen, setEditStrategyOpen] = useState(false);
@@ -75,6 +75,27 @@ export default function StrategyDetail() {
     ]);
   };
 
+  const confirmDeleteStrategy = () => {
+    Alert.alert(
+      'Delete Strategy',
+      `Delete "${strategy.name}"? Its ${stats.totalTrades} trades will be kept but no longer linked to it. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteStrategy(strategy.id);
+              router.back();
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to delete strategy.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View className="flex-1 bg-dark-bg">
       <Stack.Screen options={{ title: 'Strategy' }} />
@@ -87,9 +108,14 @@ export default function StrategyDetail() {
                 <Text className="text-2xl font-black text-white mb-2">{strategy.name}</Text>
                 {strategy.description ? <Text className="text-[#A8AEC1] leading-5 mb-4">{strategy.description}</Text> : null}
               </View>
-              <TouchableOpacity onPress={() => setEditStrategyOpen(true)} className="p-2 bg-[#1a1b24] rounded-xl border border-[#2b2d3a]">
-                <Ionicons name="pencil" size={18} color="#8B92A5" />
-              </TouchableOpacity>
+              <View className="flex-row items-center gap-2">
+                <TouchableOpacity onPress={() => setEditStrategyOpen(true)} className="p-2 bg-[#1a1b24] rounded-xl border border-[#2b2d3a]">
+                  <Ionicons name="pencil" size={18} color="#8B92A5" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={confirmDeleteStrategy} className="p-2 bg-[#1a1b24] rounded-xl border border-[#2b2d3a]">
+                  <Ionicons name="trash-outline" size={18} color="#FF4D6A" />
+                </TouchableOpacity>
+              </View>
             </View>
             <Button title="＋ New Trade" onPress={() => router.push(`/add-trade?strategyId=${strategy.id}`)} />
           </Card>
