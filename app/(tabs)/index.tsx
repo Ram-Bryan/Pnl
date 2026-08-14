@@ -20,10 +20,11 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { Card, EmptyState, Fab, PnlText, SectionHeader, Segmented, TradeRow, WinRateDonut } from '../../src/ui';
+import { Card, EmptyState, AddTradeFab, ImportConfirmModal, PnlText, SectionHeader, Segmented, TradeRow, WinRateDonut } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useDashboard } from '../../src/hooks/useDashboard';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
+import { useCsvImport } from '../../src/hooks/useCsvImport';
 import { formatMoney, formatPnl, DisplayUnit } from '../../src/lib/format';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { getGoalHistory, getSetting } from '../../src/db/database';
@@ -694,8 +695,9 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const router = useRouter();
-  const { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error } = useDashboard();
+  const { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error, refetch } = useDashboard();
   const { accountType } = useAccountSetting();
+  const csvImport = useCsvImport({ onImported: () => refetch() });
 
   const [period, setPeriod] = useState<Period>('today');
   const todayLocal = useMemo(() => {
@@ -1061,9 +1063,16 @@ export default function Dashboard() {
 
       </ScrollView>
 
-      <View className="absolute bottom-6 right-6">
-        <Fab onPress={() => router.push('/add-trade')} />
-      </View>
+      <AddTradeFab
+        onAddManual={() => router.push('/add-trade')}
+        onImport={csvImport.pickFile}
+      />
+      <ImportConfirmModal
+        summary={csvImport.summary}
+        importing={csvImport.importing}
+        onCancel={csvImport.cancelImport}
+        onConfirm={csvImport.confirmImport}
+      />
     </View>
   );
 }

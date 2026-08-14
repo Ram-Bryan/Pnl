@@ -8,13 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { EmptyState, Fab, TradeRow, Segmented, Pagination } from '../../src/ui';
+import { EmptyState, AddTradeFab, ImportConfirmModal, TradeRow, Segmented, Pagination } from '../../src/ui';
 import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
+import { useCsvImport } from '../../src/hooks/useCsvImport';
 import { computeTradePnl } from '../../src/stats/computeStats';
 import { DisplayUnit } from '../../src/lib/format';
-import { ASSET_CLASSES, TRADE_STYLES, AssetClassKey, TradeStyle } from '../../src/lib/constants';
+import { ASSET_CLASSES, TRADE_STYLES } from '../../src/lib/constants';
 
 type DirectionFilter = 'all' | 'long' | 'short';
 type StatusFilter   = 'all' | 'open' | 'closed';
@@ -356,6 +357,9 @@ export default function Trades() {
   const router = useRouter();
   const { trades, loading, refetch } = useTrades();
   const { accountType, displayUnit } = useAccountSetting();
+  const { importing, summary, pickFile, confirmImport, cancelImport } = useCsvImport({
+    onImported: () => refetch(),
+  });
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -462,6 +466,10 @@ export default function Trades() {
     setPage(1);
   };
 
+  const handleAddManual = () => {
+    router.push('/add-trade');
+  };
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-dark-bg"
@@ -479,7 +487,9 @@ export default function Trades() {
       />
 
       <Animated.View entering={FadeIn.duration(400)} className="px-4 pt-4 pb-2" style={{ zIndex: 50 }}>
-        <Text className="text-2xl font-black text-dark-text mb-4">Trade History</Text>
+        <View className="flex-row justify-between items-center mb-4">
+          <Text className="text-2xl font-black text-dark-text">Trade History</Text>
+        </View>
 
         {/* Search bar */}
         <View className="relative z-20">
@@ -588,9 +598,14 @@ export default function Trades() {
         />
       )}
 
-      <View className="absolute bottom-8 right-6">
-        <Fab onPress={() => router.push('/add-trade')} />
-      </View>
+      <AddTradeFab onAddManual={handleAddManual} onImport={pickFile} />
+
+      <ImportConfirmModal
+        summary={summary}
+        importing={importing}
+        onCancel={cancelImport}
+        onConfirm={confirmImport}
+      />
     </KeyboardAvoidingView>
   );
 }

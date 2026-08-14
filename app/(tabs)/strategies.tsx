@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { EmptyState, StrategyFormSheet } from '../../src/ui';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { EmptyState, StrategyFormSheet, Fab } from '../../src/ui';
 import { formatPnl } from '../../src/lib/format';
 import { useStrategies } from '../../src/hooks/useStrategies';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
@@ -22,16 +22,13 @@ export default function StrategiesTab() {
 
   return (
     <View className="flex-1 bg-dark-bg" style={{ paddingTop: insets.top }}>
-      <Animated.View entering={FadeIn.duration(400)} className="flex-row justify-between items-center px-4 pt-4 pb-2 bg-dark-bg">
+      <View className="px-4 pt-2 pb-2 bg-dark-bg flex-row items-center">
         <Text className="text-2xl font-black text-dark-text">Strategies</Text>
-        <TouchableOpacity onPress={() => setSheetOpen(true)} className="bg-[#1a1b24] p-3 rounded-2xl border border-[#2b2d3a]">
-          <Ionicons name="add" size={20} color="#00E68A" />
-        </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}>
         {strategies.length === 0 ? (
-          <EmptyState icon="bulb-outline" title="No strategies yet." subtitle="Tap the + button to create your first strategy." />
+          <EmptyState icon="bulb-outline" title="No strategies yet." subtitle="Tap + to create your first strategy." />
         ) : (
           strategies.map((s, i) => {
             const st = statsByStrategy[s.id];
@@ -47,7 +44,6 @@ export default function StrategiesTab() {
                       <Text className="font-bold text-base text-white tracking-wide">{s.name}</Text>
                       {st.totalTrades > 0 ? (
                         <>
-
                           <View className='flex-row items-center gap-x-2'>
                             <View
                               className="py-0.5 rounded-md mt-2"
@@ -58,19 +54,12 @@ export default function StrategiesTab() {
                             >Win rate: {st.winRate.toFixed(0)}%</Text>
                             </View>
                           </View>
-
-            
-
                           <View className="flex-row items-center mt-2">
                             <Ionicons name='arrow-up-outline' size={13} color="#6b6880" />
                             <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
                               {st.totalTrades} trades
                             </Text>
                           </View>
-
-
-
-
                         </>
                       ) : (
                         <Text className="text-2xl font-black text-dark-text-muted mt-1.5">—</Text>
@@ -90,6 +79,9 @@ export default function StrategiesTab() {
         )}
       </ScrollView>
 
+      <View className="absolute bottom-6 right-6">
+        <Fab onPress={() => setSheetOpen(true)} />
+      </View>
       <StrategyFormSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onSubmit={addStrategy} />
     </View>
   );

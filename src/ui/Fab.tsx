@@ -5,7 +5,13 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function Fab({ onPress }: { onPress: () => void }) {
+type FabProps = {
+  onPress: () => void;
+  /** When true, the "+" icon is swapped for a close icon (speed-dial open state). */
+  active?: boolean;
+};
+
+export function Fab({ onPress, active = false }: FabProps) {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -14,21 +20,26 @@ export function Fab({ onPress }: { onPress: () => void }) {
   return (
     <AnimatedPressable
       onPress={onPress}
-      onPressIn={() => { scale.value = withSpring(0.85, { damping: 10, stiffness: 300 }); }}
-      onPressOut={() => { scale.value = withSpring(1, { damping: 8, stiffness: 250 }); }}
+      onPressIn={() => { scale.value = withSpring(0.88, { damping: 14, stiffness: 320 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 8, stiffness: 240 }); }}
       style={[
         animatedStyle,
         {
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#00E68A',
+          alignItems: 'center',
+          justifyContent: 'center',
           shadowColor: '#00E68A',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.4,
-          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.45,
+          shadowRadius: 14,
           elevation: 8,
         },
       ]}
-      className="bg-neon-green w-16 h-16 rounded-full items-center justify-center"
     >
-      <Ionicons name="add" size={32} color="#0A0E1A" />
+      <Ionicons name={active ? 'close' : 'add'} size={28} color="white" />
     </AnimatedPressable>
   );
 }

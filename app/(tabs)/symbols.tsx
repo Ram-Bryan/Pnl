@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { EmptyState, Sheet } from '../../src/ui';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { EmptyState, Fab, Sheet } from '../../src/ui';
 import { Instrument, AssetClass, PriceMode } from '../../src/db/schema';
 import { getInstruments, insertInstrument, deleteInstrument, updateInstrument } from '../../src/db/database';
 import { ASSET_CLASSES } from '../../src/lib/constants';
@@ -157,16 +157,13 @@ export default function SymbolsTab() {
   return (
     <View className="flex-1 bg-dark-bg" style={{ paddingTop: insets.top }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Animated.View entering={FadeIn.duration(400)} className="flex-row justify-between items-center px-4 pt-4 pb-2 bg-dark-bg">
+      <View className="px-4 pt-2 pb-2 bg-dark-bg flex-row items-center">
         <Text className="text-2xl font-black text-dark-text">Symbols</Text>
-        <TouchableOpacity onPress={openAdd} className="bg-[#1a1b24] p-3 rounded-2xl border border-[#2b2d3a]">
-          <Ionicons name="add" size={20} color="#00E68A" />
-        </TouchableOpacity>
-      </Animated.View>
-      
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}>
         {instruments.length === 0 ? (
-          <EmptyState icon="pricetags" title="No symbols yet." subtitle="Tap the + button to add one." />
+          <EmptyState icon="pricetags" title="No symbols yet." subtitle="Tap + to add your first symbol." />
         ) : (
           instruments.map((inst, i) => (
             <Animated.View key={inst.id} entering={FadeInDown.duration(400).delay(Math.min(i * 60, 600)).springify().damping(18)}>
@@ -198,6 +195,10 @@ export default function SymbolsTab() {
           ))
         )}
       </ScrollView>
+
+      <View className="absolute bottom-6 right-6">
+        <Fab onPress={openAdd} />
+      </View>
 
       <Sheet visible={isSheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "Edit Symbol" : "Add Symbol"}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

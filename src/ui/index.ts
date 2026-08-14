@@ -7,6 +7,8 @@ export { PnlText } from './PnlText';
 export { SectionHeader } from './SectionHeader';
 export { EmptyState } from './EmptyState';
 export { Fab } from './Fab';
+export { AddTradeFab } from './AddTradeFab';
+export { ImportConfirmModal } from './ImportConfirmModal';
 export { Sheet } from './Sheet';
 export { TradeRow } from './TradeRow';
 export { StrategyFormSheet } from './StrategyFormSheet';
