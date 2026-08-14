@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Switch, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -125,11 +125,7 @@ export default function SettingsTab() {
     return <View className="flex-1 items-center justify-center bg-dark-bg"><ActivityIndicator size="large" color="#00E68A" /></View>;
   }
 
-  const toggleDisplayUnit = async (value: boolean) => {
-    await setDisplayUnit(value ? 'usc' : 'usd');
-  };
-
-  const accountSuffix = accountType === 'cents' ? 'USC' : '$';
+  const displayUnitSuffix = displayUnit === 'usc' ? 'USC' : '$';
 
   return (
     <View className="flex-1 bg-dark-bg" style={{ paddingTop: insets.top }}>
@@ -159,25 +155,18 @@ export default function SettingsTab() {
 
           <Animated.View entering={FadeInDown.duration(400).springify()}>
             <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
-              <View className="flex-row items-center justify-between mb-2">
-                <View className="flex-row items-center gap-3">
-                  <View className="w-10 h-10 rounded-xl bg-[#00E68A]/10 border border-[#00E68A]/20 items-center justify-center">
-                    <Ionicons name="eye" size={20} color="#00E68A" />
-                  </View>
-                  <View>
-                    <Text className="text-white font-bold text-base">Display Unit</Text>
-                    <Text className="text-[#8B92A5] text-xs">Show PnL in USC instead of USD</Text>
-                  </View>
+              <View className="flex-row items-center gap-x-2 mb-3">
+                <View className="w-8 h-8 rounded-xl bg-[#00E68A]/10 border border-[#00E68A]/20 items-center justify-center">
+                  <Ionicons name="eye" size={16} color="#00E68A" />
                 </View>
-                <Switch
-                  trackColor={{ false: '#3e3b4b', true: '#00E68A' }}
-                  thumbColor={displayUnit === 'usc' ? '#13141a' : '#f4f3f4'}
-                  ios_backgroundColor="#3e3b4b"
-                  onValueChange={toggleDisplayUnit}
-                  value={displayUnit === 'usc'}
-                />
+                <Text className="text-white font-bold text-base">Display Unit</Text>
               </View>
-              <View className="bg-[#13141a] rounded-xl p-3 border border-[#1e1d2b] mt-2">
+              <Segmented<'usd' | 'usc'>
+                options={[{ key: 'usd', label: 'USD ($)' }, { key: 'usc', label: 'USC' }]}
+                value={displayUnit}
+                onChange={setDisplayUnit}
+              />
+              <View className="bg-[#13141a] rounded-xl p-3 border border-[#1e1d2b] mt-3">
                 <Text className="text-[#6b6880] text-[11px] font-medium leading-4">
                   The display unit only changes how P&L is shown (1 USD = 100 USC). It never changes how positions are sized — that is set by the account type above.
                 </Text>
@@ -212,7 +201,7 @@ export default function SettingsTab() {
                   onChangeText={setWeeklyGoal}
                   placeholder="0.00"
                   align="left"
-                  suffix={accountSuffix}
+                  suffix={displayUnitSuffix}
                 />
               </Field>
 
@@ -224,7 +213,7 @@ export default function SettingsTab() {
                   onChangeText={setDailyLossLimit}
                   placeholder="0.00"
                   align="left"
-                  suffix={accountSuffix}
+                  suffix={displayUnitSuffix}
                 />
               </Field>
 
