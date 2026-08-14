@@ -199,6 +199,18 @@ export default function SettingsTab() {
 
           <Animated.View entering={FadeInDown.duration(400).springify()}>
             <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
+              <View className="flex-row items-center gap-x-2 mb-4">
+                <View className="w-8 h-8 rounded-xl bg-[#2d7df6]/10 border border-[#2d7df6]/20 items-center justify-center">
+                  <Ionicons name="calendar" size={16} color="#2d7df6" />
+                </View>
+                <Text className="text-white font-bold text-base">Trading Start Date</Text>
+              </View>
+              <TradingStartDatePicker value={tradingStartDate} onChange={setTradingStartDate} />
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(400).springify()}>
+            <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
               <Text className="text-white font-bold text-base mb-3">Account Type</Text>
               <Segmented<AccountType>
                 options={[{ key: 'standard', label: 'Standard' }, { key: 'cents', label: 'Cents' }]}
@@ -270,11 +282,6 @@ export default function SettingsTab() {
                   align="left"
                 />
               </Field>
-
-              <View className="mt-5">
-                <Text className="text-[11px] font-bold tracking-widest uppercase text-[#8B92A5] mb-2">Trading Start Date</Text>
-                <TradingStartDatePicker value={tradingStartDate} onChange={setTradingStartDate} />
-              </View>
 
               <Pressable
                 onPress={handleSavePlan}

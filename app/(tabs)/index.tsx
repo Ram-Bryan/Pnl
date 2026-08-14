@@ -203,13 +203,13 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
   const progressPct = Math.min(100, Math.max(0, isPositive ? (currentWeekPnl / weeklyGoal) * 100 : 0));
   
   // Goal amount display: show with - if negative, green number without + if positive
-  let goalDisplayStr: string;
+  // Strip $ sign and show just the number
+  let goalDisplayNum: string;
   if (weeklyGoal < 0) {
-    goalDisplayStr = `-${formatPnl(Math.abs(weeklyGoal), displayUnit)}`;
+    goalDisplayNum = `-${formatPnl(Math.abs(weeklyGoal), displayUnit).replace('$', '')}`;
   } else {
-    goalDisplayStr = `+${formatPnl(weeklyGoal, displayUnit)}`.replace('+', '');
-    // Make positive goal display green
-    // We'll apply green color via the colored pnlStr below, not via the goal string
+    goalDisplayNum = `${formatPnl(weeklyGoal, displayUnit).replace('$', '')}`;
+    // Make positive goal display green via the pnlColor below
   }
   
   // Color: green if goal met, blue if in progress, red if in loss
@@ -239,8 +239,14 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
               <Text style={{ color: pnlColor, fontSize: 28, fontWeight: '900', letterSpacing: -0.5, fontVariant: ['tabular-nums'] }}>
                 {pnlStr}
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: -2 }}>
-                {goalDisplayStr}
+              <Text style={{ 
+                color: weeklyGoal < 0 ? '#FF4D6A' : '#00E68A', 
+                fontSize: 13, 
+                fontWeight: '700', 
+                fontVariant: ['tabular-nums'], 
+                marginTop: -2 
+              }}>
+                {goalDisplayNum}
               </Text>
             </View>
           </View>
@@ -296,8 +302,7 @@ const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLoss
           <Ionicons name="alert-circle" size={24} color="#f59e0b" className="mr-3" />
           <View className="ml-2 flex-1">
             <Text className="text-[#f59e0b] font-black tracking-wide text-sm mb-0.5">Approaching Loss Limit</Text>
-            <Text className="text-[#f59e0b]/90 text-xs font-semibold">You're {currentStr} in loss. stay disciplined.</Text>
-            <Text className="text-[#f59e0b]/70 text-xs font-medium mt-1">You are at {Math.round(loss/limit*100)}% of your daily limit.</Text>
+            <Text className="text-[#f59e0b] font-black text-sm">You're {currentStr} in loss. stay disciplined.</Text>
           </View>
         </View>
       </Animated.View>
