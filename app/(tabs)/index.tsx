@@ -198,19 +198,14 @@ const GoalHistorySheet = ({ visible, onClose, data, displayUnit }: { visible: bo
 
 // ─── Goal Progress Bar ───────────────────────────────────────────────────────
 const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: { weeklyGoal: number, currentWeekPnl: number, displayUnit: DisplayUnit, onPress: () => void }) => {
-  const pnlStr = formatPnl(currentWeekPnl, displayUnit);
+  // Format P&L with proper sign (formatPnl uses Math.abs internally)
+  const pnlStr = currentWeekPnl < 0 ? `-${formatPnl(Math.abs(currentWeekPnl), displayUnit)}` : formatPnl(currentWeekPnl, displayUnit);
   const isPositive = currentWeekPnl >= 0;
   const progressPct = Math.min(100, Math.max(0, isPositive ? (currentWeekPnl / weeklyGoal) * 100 : 0));
   
-  // Goal amount display: show with - if negative, green number without + if positive
-  // Strip $ sign and show just the number
-  let goalDisplayNum: string;
-  if (weeklyGoal < 0) {
-    goalDisplayNum = `-${formatPnl(Math.abs(weeklyGoal), displayUnit).replace('$', '')}`;
-  } else {
-    goalDisplayNum = `${formatPnl(weeklyGoal, displayUnit).replace('$', '')}`;
-    // Make positive goal display green via the pnlColor below
-  }
+  // Goal amount display: no currency symbol, show minus if negative, always white
+  const absGoal = Math.abs(weeklyGoal);
+  const goalDisplayNum = weeklyGoal < 0 ? `-${absGoal.toFixed(2)}` : absGoal.toFixed(2);
   
   // Color: green if goal met, blue if in progress, red if in loss
   const pnlColor = currentWeekPnl < 0 ? '#FF4D6A' : progressPct >= 100 ? '#00E68A' : '#2d7df6';
@@ -240,13 +235,13 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
                 {pnlStr}
               </Text>
               <Text style={{ 
-                color: weeklyGoal < 0 ? '#FF4D6A' : '#00E68A', 
+                color: 'rgba(255,255,255,0.7)', 
                 fontSize: 13, 
-                fontWeight: '700', 
+                fontWeight: '600', 
                 fontVariant: ['tabular-nums'], 
                 marginTop: -2 
               }}>
-                {goalDisplayNum}
+                / {goalDisplayNum}
               </Text>
             </View>
           </View>
@@ -256,14 +251,9 @@ const GoalProgressBar = ({ weeklyGoal, currentWeekPnl, displayUnit, onPress }: {
             <View style={{ width: `${progressPct}%`, backgroundColor: pnlColor, height: '100%', borderRadius: 99 }} />
           </View>
 
-          {currentWeekPnl < 0 && (
-            <Text style={{ fontSize: 10, color: 'rgba(255,77,106,0.75)', fontWeight: '600', marginTop: 8 }}>
-              Currently in drawdown · stay disciplined.
-            </Text>
-          )}
           {progressPct >= 100 && currentWeekPnl >= 0 && (
             <Text style={{ fontSize: 10, color: 'rgba(0,230,138,0.75)', fontWeight: '600', marginTop: 8 }}>
-              ✓ Weekly goal achieved!
+              �� Weekly goal achieved!
             </Text>
           )}
         </Card>
@@ -314,7 +304,7 @@ const DailyLossWarning = ({ dailyLossLimit, todayPnl, displayUnit }: { dailyLoss
 
 // ─── Pnl Hero Card ────────────────────────────────────────────────────────────
 const PnlHeroCard = ({ pnl, label, displayUnit }: { pnl: number; label: string; displayUnit: DisplayUnit }) => {
-  const isZero = pnl === 0;8
+  const isZero = pnl === 0;
   const isPositive = pnl > 0;
   const gradientColors = isZero
     ? (['rgba(100,100,120,0.18)', 'rgba(100,100,120,0.05)', 'transparent'] as const)

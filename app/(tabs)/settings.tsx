@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Switch, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, Switch, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -11,111 +12,52 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { upsertGoal, getSetting, setSetting } from '../../src/db/database';
 import { Goal } from '../../src/db/schema';
 
-// ─── Inline Day/Month/Year Picker ────────────────────────────────────────────
-const ITEM_H = 44;
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+// ─── Date Picker (calendar tap → DateTimePicker modal) ───────────────────────
+function toYmd(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-
-const DatePickerColumn = ({
-  items,
-  selectedIndex,
-  onSelect,
-}: {
-  items: (string | number)[];
-  selectedIndex: number;
-  onSelect: (index: number) => void;
-}) => (
-  <View style={{ flex: 1 }}>
-    <View style={{ height: ITEM_H * 4, overflow: 'hidden' }}>
-      <ScrollView showsVerticalScrollIndicator={false} snapToInterval={ITEM_H} decelerationRate="fast">
-        {items.map((item, i) => {
-          const selected = selectedIndex === i;
-          return (
-            <Pressable
-              key={String(item)}
-              onPress={() => onSelect(i)}
-              style={{
-                height: ITEM_H,
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: selected ? 'rgba(45,125,246,0.15)' : 'transparent',
-                borderRadius: 10,
-                marginBottom: 2,
-              }}
-            >
-              <Text
-                style={{
-                  color: selected ? '#ffffff' : '#6b6880',
-                  fontWeight: selected ? '800' : '500',
-                  fontSize: selected ? 16 : 14,
-                }}
-              >
-                {item}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  </View>
-);
 
 const TradingStartDatePicker = ({
   value,
   onChange,
 }: {
-  value: string; // YYYY-MM-DD
+  value: string;
   onChange: (date: string) => void;
 }) => {
-  const parsed = value && value.length === 10 ? new Date(value) : new Date();
-  const [selDay, setSelDay] = useState(parsed.getUTCDate() - 1);
-  const [selMonth, setSelMonth] = useState(parsed.getUTCMonth());
-  const thisYear = new Date().getUTCFullYear();
-  const years = Array.from({ length: 8 }, (_, i) => thisYear - 6 + i);
-  const [selYearIdx, setSelYearIdx] = useState(years.indexOf(parsed.getUTCFullYear() !== 0 ? parsed.getUTCFullYear() : thisYear));
+  const [showPicker, setShowPicker] = useState(false);
+  const dateObj = useMemo(() => {
+    try { return value && value.length === 10 ? new Date(value + 'T12:00:00') : new Date(); }
+    catch { return new Date(); }
+  }, [value]);
 
-  const selYear = years[selYearIdx] ?? thisYear;
-  const numDays = daysInMonth(selYear, selMonth);
-  const days = Array.from({ length: numDays }, (_, i) => String(i + 1).padStart(2, '0'));
-
-  // Clamp day when month/year changes
-  const clampedDay = Math.min(selDay, numDays - 1);
-
-  const emit = (d: number, m: number, yIdx: number) => {
-    const y = years[yIdx] ?? thisYear;
-    const nDays = daysInMonth(y, m);
-    const clD = Math.min(d, nDays - 1);
-    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(clD + 1).padStart(2, '0')}`;
-    onChange(dateStr);
+  const onDateChange = (_: DateTimePickerEvent, sel?: Date) => {
+    setShowPicker(false);
+    if (sel) onChange(toYmd(sel));
   };
 
-  const handleDay = (i: number) => { setSelDay(i); emit(i, selMonth, selYearIdx); };
-  const handleMonth = (i: number) => { setSelMonth(i); emit(selDay, i, selYearIdx); };
-  const handleYear = (i: number) => { setSelYearIdx(i); emit(selDay, selMonth, i); };
-
   return (
-    <View className="bg-[#13141a] rounded-2xl border border-[#2b2d3a] p-3 mt-1">
-      {/* Column headers */}
-      <View className="flex-row mb-1">
-        <View style={{ flex: 1 }}><Text className="text-[10px] text-center font-bold tracking-widest text-[#6b6880] uppercase">Day</Text></View>
-        <View style={{ flex: 1 }}><Text className="text-[10px] text-center font-bold tracking-widest text-[#6b6880] uppercase">Month</Text></View>
-        <View style={{ flex: 1 }}><Text className="text-[10px] text-center font-bold tracking-widest text-[#6b6880] uppercase">Year</Text></View>
-      </View>
-      <View className="flex-row gap-x-2">
-        <DatePickerColumn items={days} selectedIndex={clampedDay} onSelect={handleDay} />
-        <View className="w-px bg-[#2b2d3a] my-2" />
-        <DatePickerColumn items={MONTHS_SHORT} selectedIndex={selMonth} onSelect={handleMonth} />
-        <View className="w-px bg-[#2b2d3a] my-2" />
-        <DatePickerColumn items={years} selectedIndex={selYearIdx < 0 ? 5 : selYearIdx} onSelect={handleYear} />
-      </View>
-      {/* Current selection label */}
-      <View className="items-center mt-2 pt-2 border-t border-[#2b2d3a]">
-        <Text className="text-[#2d7df6] text-sm font-bold tracking-wide">{value || '—'}</Text>
-      </View>
-    </View>
+    <>
+      <TouchableOpacity
+        onPress={() => setShowPicker(true)}
+        className="bg-[#13141a] border border-[#1e1d2b] rounded-xl px-4 h-[52px] flex-row items-center justify-between"
+        activeOpacity={0.7}
+      >
+        <Text className="text-white font-semibold" style={{ fontVariant: ['tabular-nums'] }}>
+          {dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+        </Text>
+        <Ionicons name="calendar-outline" size={18} color="#6b6880" />
+      </TouchableOpacity>
+      {showPicker && (
+        <DateTimePicker
+          value={dateObj}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          onChange={onDateChange}
+          themeVariant="dark"
+        />
+      )}
+    </>
   );
 };
 
