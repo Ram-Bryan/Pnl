@@ -119,7 +119,7 @@ export default function TradeDetail() {
           </View>
 
           {isOpen ? (
-            <Text className="text-4xl font-black text-neon-amber mb-6" style={{ textShadowColor: 'rgba(255,181,71,0.4)', textShadowRadius: 16 }}>Open</Text>
+            <Text className="text-4xl font-black text-[#4D9EFF] mb-6" style={{ textShadowColor: 'rgba(77,158,255,0.4)', textShadowRadius: 16 }}>Open</Text>
           ) : (
             <View className=" items-center">
               <PnlText value={pnl} size="text-5xl" glow displayUnit={displayUnit} />
@@ -128,14 +128,6 @@ export default function TradeDetail() {
                   {returnPct > 0 ? '+' : ''}{returnPct.toFixed(3)}% Return
                 </Text>
               </View>
-            </View>
-          )}
-
-          {isOpen && (
-            <View className="px-4 py-1.5 rounded-full mt-2" style={{ backgroundColor: 'rgba(255,181,71,0.15)', borderWidth: 1, borderColor: 'rgba(255,181,71,0.3)' }}>
-              <Text className="text-sm font-bold capitalize text-[#FFB547]">
-                Open
-              </Text>
             </View>
           )}
         </Card>
