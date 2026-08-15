@@ -112,7 +112,9 @@ export function TradeRow({
             <View className="flex-row items-center mb-2.5">
               <Ionicons name="wallet-outline" size={13} color="#6b6880" />
               <Text className="text-[12px] font-semibold ml-1.5" style={{ color: '#A8AEC1' }}>
-                Inv: ${Math.round(invested)}
+                {displayUnit === 'usc'
+                  ? `Inv: ${Math.round(invested * 100)} USC`
+                  : `Inv: $${Math.round(invested)}`}
               </Text>
             </View>
 

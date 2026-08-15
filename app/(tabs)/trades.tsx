@@ -263,7 +263,7 @@ function FilterSheet({
           <RangeInput
             minVal={draft.sizeMin} maxVal={draft.sizeMax}
             onMinChange={v => set('sizeMin', v)} onMaxChange={v => set('sizeMax', v)}
-            prefix="$"
+            prefix={displayUnit === 'usc' ? '' : '$'}
           />
         </View>
 
