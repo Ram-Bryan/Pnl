@@ -26,7 +26,9 @@ export function ImportConfirmModal({
           <Text className="text-white font-bold text-lg text-center">Import Trades</Text>
         </View>
         <Text className="text-dark-text-secondary text-sm text-center mb-2">
-          {summary.count} trades found
+          {summary.kind === 'open'
+            ? `${summary.count} open position${summary.count === 1 ? '' : 's'} found`
+            : `${summary.count} closed trade${summary.count === 1 ? '' : 's'} found`}
         </Text>
         <Text className="text-dark-text-muted text-xs text-center mb-5">
           Symbols: {summary.symbols.join(', ')}
