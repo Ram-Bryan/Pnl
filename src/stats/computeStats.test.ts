@@ -68,7 +68,7 @@ describe('computeTradePnl', () => {
       contract_size: 100000,
     });
     const pnl = computeTradePnl(trade);
-    expect(pnl).toBeCloseTo(-0.0010155, 6);
+    expect(pnl).toBe(-0.001);
     expect(pnl * 100).toBeCloseTo(-0.10, 2);
   });
 
@@ -83,7 +83,41 @@ describe('computeTradePnl', () => {
       size: 0.01,
       contract_size: 100000,
     });
-    expect(computeTradePnl(trade)).toBeCloseTo(-0.0010155, 6);
+    expect(computeTradePnl(trade)).toBe(-0.001);
+  });
+
+  it('rounds each trade to the account cent before summing (standard → 2 decimals)', () => {
+    const trade = makeTrade({
+      price_mode: 'standard',
+      entry_price: 100,
+      exit_price: 100.1234,
+      size: 1,
+      contract_size: 1,
+    });
+    expect(computeTradePnl(trade)).toBe(0.12);
+  });
+
+  it('rounds cents-account P&L to 4-decimal USD (the USC cent)', () => {
+    const trade = makeTrade({
+      price_mode: 'cents',
+      entry_price: 100,
+      exit_price: 100.12345,
+      size: 1,
+      contract_size: 100, // 1 lot × 100 contract × 0.01 cents scale = 1 unit
+    });
+    expect(computeTradePnl(trade)).toBe(0.1235);
+  });
+
+  it('a sub-cent P&L rounds to exactly 0 even when full precision is nonzero', () => {
+    const trade = makeTrade({
+      price_mode: 'cents',
+      entry_price: 100,
+      exit_price: 100.00003,
+      size: 1,
+      contract_size: 1,
+    });
+    expect(computeTradePnl(trade)).toBe(0);
+    expect(computeStats([trade]).allTimePnl).toBe(0);
   });
 
   it('display unit converts the same canonical P&L (USC <-> USD) without recomputing', () => {
@@ -100,13 +134,13 @@ describe('computeTradePnl', () => {
     });
 
     const pnl = computeTradePnl(trade);
-    expect(pnl).toBeCloseTo(-0.0010155, 6);
+    expect(pnl).toBe(-0.001);
     expect(formatPnl(pnl, 'usc')).toBe('0.10 USC');
     expect(formatPnl(pnl, 'usd')).toBe('$0.001');
 
     // Dashboard hero shows the sum of visible trades; the sum must convert too.
     const hero = computeStats([trade]).allTimePnl;
-    expect(hero).toBeCloseTo(-0.0010155, 6);
+    expect(hero).toBe(-0.001);
     expect(formatPnl(hero, 'usc')).toBe('0.10 USC');
     expect(formatPnl(hero, 'usd')).toBe('$0.001');
   });

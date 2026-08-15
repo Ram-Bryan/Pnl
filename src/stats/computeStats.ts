@@ -58,19 +58,31 @@ export type StatsResult = {
 // - Lot volume is scaled 100x smaller on a cents account (MT5 cent-account sizing).
 // - For non-USD quote pairs (e.g. JPY in USDJPY), converts to USD by the entry price.
 // Returns 0 for open trades (no exit_price).
+// MT5 rounds each trade's realized profit to the account currency's cent before
+// carrying it into totals. Cents accounts display USC (2 decimals), so their USD
+// value is quantized to 0.0001. This is the single rounding boundary — the
+// add-trade preview uses computeTradePnlInUsd directly and keeps full precision.
+function roundPnlToAccountCent(pnlUsd: number, priceMode: 'standard' | 'cents'): number {
+  const digits = priceMode === 'cents' ? 4 : 2;
+  return Number(pnlUsd.toFixed(digits));
+}
+
 export function computeTradePnl(trade: TradeWithInstrument): number {
   if (trade.exit_price == null) return 0;
 
-  return computeTradePnlInUsd({
-    direction: trade.direction,
-    entryPrice: trade.entry_price,
-    exitPrice: trade.exit_price,
-    lots: trade.size,
-    contractSize: trade.contract_size,
-    quoteCurrency: resolveQuoteCurrency(trade.symbol, trade.quote_currency),
-    fees: trade.fees,
-    accountType: trade.price_mode,
-  });
+  return roundPnlToAccountCent(
+    computeTradePnlInUsd({
+      direction: trade.direction,
+      entryPrice: trade.entry_price,
+      exitPrice: trade.exit_price,
+      lots: trade.size,
+      contractSize: trade.contract_size,
+      quoteCurrency: resolveQuoteCurrency(trade.symbol, trade.quote_currency),
+      fees: trade.fees,
+      accountType: trade.price_mode,
+    }),
+    trade.price_mode,
+  );
 }
 
 function toDateString(iso: string): string {
