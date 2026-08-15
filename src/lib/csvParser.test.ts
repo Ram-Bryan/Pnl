@@ -91,19 +91,15 @@ describe('defaultContractSizeFor', () => {
 
 describe('normalizeImportedDateTime', () => {
   it('converts MT5 dot format to ISO date/time', () => {
-    const out = normalizeImportedDateTime('2024.08.14 09:19:24', false);
+    const out = normalizeImportedDateTime('2024.08.14 09:19:24');
     expect(out).toBe('2024-08-14T09:19:24');
   });
 
-  it('treats ISO input with no timezone as local wall time when not UTC', () => {
-    expect(normalizeImportedDateTime('2026-08-14T09:19:24', false)).toBe('2026-08-14T09:19:24');
-  });
-
-  it('shifts UTC timestamps to local wall time', () => {
-    const expected = new Date(Date.UTC(2026, 7, 14, 9, 19, 24));
-    const p = (n: number) => String(n).padStart(2, '0');
-    const want = `${expected.getFullYear()}-${p(expected.getMonth() + 1)}-${p(expected.getDate())}T${p(expected.getHours())}:${p(expected.getMinutes())}:${p(expected.getSeconds())}`;
-    expect(normalizeImportedDateTime('2026-08-14T09:19:24', true)).toBe(want);
+  it('returns the CSV wall-clock time verbatim (no UTC→local conversion)', () => {
+    // The CSV is the source of truth: the stored value must match the export,
+    // not the device's local wall time.
+    expect(normalizeImportedDateTime('2026-08-14T09:19:24')).toBe('2026-08-14T09:19:24');
+    expect(normalizeImportedDateTime('2024.08.14 09:19:24')).toBe('2024-08-14T09:19:24');
   });
 
   it('normalizes parsed rows to ISO day buckets', () => {
@@ -114,7 +110,25 @@ describe('normalizeImportedDateTime', () => {
   });
 
   it('leaves unparseable values untouched', () => {
-    expect(normalizeImportedDateTime('not-a-date', true)).toBe('not-a-date');
+    expect(normalizeImportedDateTime('not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('price precision', () => {
+  it('parses prices to at most 6 decimals, trimming binary float noise', () => {
+    const rows = parseCsvRows(`ticket,opening_time_utc,closing_time_utc,type,lots,symbol,opening_price,closing_price,commission,swap,close_reason
+1,2026-08-14T09:19:24,2026-08-14T10:31:25,buy,0.01,XAUUSD,1.3514599999999999,1.3514599999999999,0,0,tp`);
+    expect(rows[0].opening_price).toBe(1.35146);
+    expect(rows[0].closing_price).toBe(1.35146);
+  });
+
+  it('keeps a full 6-decimal price intact', () => {
+    const rows = parseCsvRows(`ticket,opening_time_utc,closing_time_utc,type,lots,symbol,opening_price,closing_price,stop_loss,take_profit,commission,swap,close_reason
+1,2026-08-14T09:19:24,2026-08-14T10:31:25,buy,0.01,XAUUSDc,4349.4,4349.896,4349.896,4361.814,,,sl`);
+    expect(rows[0].opening_price).toBe(4349.4);
+    expect(rows[0].closing_price).toBe(4349.896);
+    expect(rows[0].stop_loss).toBe(4349.896);
+    expect(rows[0].take_profit).toBe(4361.814);
   });
 });
 
@@ -152,7 +166,8 @@ describe('open-positions format', () => {
     expect(draft.exit_price).toBeNull();
     expect(draft.exit_at).toBeNull();
     expect(draft.fees).toBe(0);
-    expect(draft.notes).toBe('MT5 ticket: 422398499');
+    expect(draft.notes).toBeNull();
+    expect(draft.ticket).toBe('422398499');
   });
 
   it('creates a single entry fill for an open trade', () => {

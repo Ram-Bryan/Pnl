@@ -64,15 +64,11 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
       const v = get(key);
       return v ? parseFloat(v) : 0;
     };
-    const getNumOrNull = (key: string): number | null => {
-      const v = get(key);
-      return v ? parseFloat(v) : null;
-    };
 
     const type = get('type').toLowerCase();
     if (type !== 'buy' && type !== 'sell') continue;
 
-    const closingPrice = isClosed ? getNumOrNull('closing_price') : null;
+    const closingPrice = isClosed ? parsePrice(get('closing_price')) : null;
     const closingTime = isClosed ? normalizeImportedDateTime(get('closing_time_utc')) : null;
     // A closed row must carry its exit data; otherwise it can't be priced and
     // would silently vanish from stats — skip it instead.
@@ -86,10 +82,10 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
       type,
       lots: getNum(sizeCol),
       symbol: get('symbol'),
-      opening_price: getNum('opening_price'),
+      opening_price: parsePrice(get('opening_price')) ?? 0,
       closing_price: closingPrice,
-      stop_loss: getNumOrNull('stop_loss'),
-      take_profit: getNumOrNull('take_profit'),
+      stop_loss: parsePrice(get('stop_loss')),
+      take_profit: parsePrice(get('take_profit')),
       commission: getNum('commission'),
       swap: isClosed ? getNum('swap') : null,
       close_reason: isClosed ? get('close_reason') : null,
@@ -179,28 +175,27 @@ export function resolveInstrument(rawSymbol: string): InstrumentDraft {
   };
 }
 
-// MT5 history exports timestamps as "2024.08.14 09:19:24" (dot separators) in
-// server time. The app stores entry_at/exit_at as naive local ISO
-// (YYYY-MM-DDTHH:mm:ss) — everything from the dashboard buckets to
-// computeStats slices on that exact shape. Normalize so imported trades land in
-// the same day buckets as manual entries. When the column is UTC (the importer's
-// opening_time_utc / closing_time_utc), shift to the device's local wall time so
-// "today" matches what the user sees on their phone.
-export function normalizeImportedDateTime(value: string, isUtc = true): string {
+// MT5 history exports timestamps as "2024.08.14 09:19:24" (dot separators). The
+// CSV is the source of truth: keep the wall-clock time exactly as exported
+// (server/UTC), only normalizing the format to the app's naive ISO shape
+// (YYYY-MM-DDTHH:mm:ss). No timezone conversion — the stored value must match the
+// CSV, and day buckets are derived in UTC.
+export function normalizeImportedDateTime(value: string): string {
   const v = value.trim();
   if (!v) return v;
-  const normalized = v
+  return v
     .replace(/^(\d{4})\.(\d{2})\.(\d{2})/, '$1-$2-$3')
     .replace(' ', 'T');
-  const m = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!m) return v;
-  const [, y, mo, d, h, mi, s] = m;
-  const date = isUtc
-    ? new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +(s ?? 0)))
-    : new Date(+y, +mo - 1, +d, +h, +mi, +(s ?? 0));
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
 }
+
+// Prices round-trip to ≤6 decimals with trailing zeros trimmed; MT5 exports at
+// most 6 significant decimals, so this never changes the CSV's value but keeps
+// binary floats from leaking garbage like 1.3514599999999999.
+const parsePrice = (raw: string): number | null => {
+  const v = raw.trim();
+  if (!v) return null;
+  return Number(parseFloat(v).toFixed(6));
+};
 
 // ─── Trade Mapping ────────────────────────────────────────────────────────────
 
@@ -231,7 +226,8 @@ export function csvRowToTradeDraft(
     exit_at: row.closing_time_utc,
     fees: row.commission + (row.swap ?? 0),
     exit_condition: row.close_reason || null,
-    notes: `MT5 ticket: ${row.ticket}`,
+    notes: null,
+    ticket: row.ticket.trim() || null,
     strategy_id: null,
     emotion_id: null,
     trade_style: null,
