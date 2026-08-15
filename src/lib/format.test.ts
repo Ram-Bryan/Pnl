@@ -34,9 +34,11 @@ describe('formatMoney', () => {
 });
 
 describe('formatPrice', () => {
-  it('trims trailing zeros to at most 4 decimals', () => {
+  it('shows up to 6 decimals without padding or extra rounding', () => {
+    expect(formatPrice(157.536)).toBe('157.536');
+    expect(formatPrice(1.35146)).toBe('1.35146');
+    expect(formatPrice(1.23456)).toBe('1.23456');
     expect(formatPrice(1234.5)).toBe('1234.5');
-    expect(formatPrice(1.23456)).toBe('1.2346');
     expect(formatPrice(100)).toBe('100');
   });
 });

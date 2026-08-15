@@ -23,10 +23,10 @@ export function formatMoney(value: number): string {
   return `$${moneyFormatter.format(value)}`;
 }
 
+// Imported prices are stored to ≤6 decimals (csvParser.parsePrice); show them
+// exactly as stored — no rounding down to 2/4 decimals and no zero-padding.
 export function formatPrice(value: number): string {
-  const abs = Math.abs(value);
-  const digits = abs >= 100 ? 2 : 4;
-  return Number(value.toFixed(digits)).toString();
+  return Number(value.toFixed(6)).toString();
 }
 
 export function capitalize(s: string): string {
