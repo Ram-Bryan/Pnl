@@ -27,6 +27,7 @@ export type TradeWithInstrument = {
   followed_rules: 0 | 1 | null;
   notes: string | null;
   reflection: string | null;
+  ticket: string | null;
   created_at: string;
   updated_at: string;
   // joined from instruments

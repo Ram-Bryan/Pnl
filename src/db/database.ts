@@ -260,6 +260,18 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`ALTER TABLE trades ADD COLUMN exit_condition TEXT;`);
   }
 
+  // --- v3 upgrade: MT5 import ticket (additive; no-op on fresh installs) ---
+  const hasTicket = tradesCols.some((c) => c.name === 'ticket');
+  if (!hasTicket) {
+    await db.execAsync(`ALTER TABLE trades ADD COLUMN ticket TEXT;`);
+    // Backfill legacy imports whose ticket lived in notes as "MT5 ticket: <id>".
+    // substr(notes, 13) strips the 12-char prefix. The legacy notes text is left
+    // in place — users may have annotated around it; dedup just stops reading it.
+    await db.runAsync(
+      `UPDATE trades SET ticket = substr(notes, 13) WHERE notes LIKE 'MT5 ticket: %'`
+    );
+  }
+
   const instrSql = await db.getFirstAsync<{ sql: string }>(
     `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'instruments'`
   );
@@ -380,7 +392,7 @@ export async function getAllTradesWithInstrument(db: SQLiteDatabase): Promise<Tr
 
 export async function insertTrade(
   db: SQLiteDatabase,
-  trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>
+  trade: Omit<Trade, 'id' | 'created_at' | 'updated_at' | 'ticket'>
 ): Promise<number> {
   const result = await db.runAsync(
     `INSERT INTO trades
@@ -817,7 +829,7 @@ type ImportCloseUpdate = {
   exit_at: string;
   fees: number;
   exit_condition: string | null;
-  notes: string | null;
+  ticket: string;
 };
 
 // Upgrades an imported open trade to closed using only the columns an MT5
@@ -833,12 +845,12 @@ async function closeTradeFromImport(
     `UPDATE trades SET
        status = ?, entry_price = ?, exit_price = ?, size = ?,
        stop_loss = ?, take_profit = ?, entry_at = ?, exit_at = ?,
-       fees = ?, exit_condition = ?, notes = ?,
+       fees = ?, exit_condition = ?, ticket = ?,
        updated_at = datetime('now')
      WHERE id = ?`,
     [update.status, update.entry_price, update.exit_price, update.size,
      update.stop_loss, update.take_profit, update.entry_at, update.exit_at,
-     update.fees, update.exit_condition, update.notes, tradeId],
+     update.fees, update.exit_condition, update.ticket, tradeId],
   );
   await replaceFills(db, tradeId, fills);
 }
@@ -861,15 +873,14 @@ export async function importTradesFromCsv(
     for (const row of rows) {
       const draft = resolveInstrument(row.symbol);
 
-      // Idempotency: re-importing an MT5 report must not duplicate trades.
-      // The ticket is stored in notes as "MT5 ticket: <ticket>" for both open
-      // and closed imports; statements inside this transaction see earlier
-      // inserts, so a ticket repeated in one file is naturally skipped too.
+      // Idempotency: re-importing an MT5 report must not duplicate trades. The
+      // ticket lives in its own column; statements inside this transaction see
+      // earlier inserts, so a ticket repeated in one file is naturally skipped.
       const ticket = row.ticket.trim();
       const existing = ticket
         ? await db.getFirstAsync<{ id: number; status: TradeStatus }>(
-            'SELECT id, status FROM trades WHERE notes = ? LIMIT 1',
-            [`MT5 ticket: ${ticket}`],
+            'SELECT id, status FROM trades WHERE ticket = ? LIMIT 1',
+            [ticket],
           )
         : null;
 
@@ -924,7 +935,7 @@ export async function importTradesFromCsv(
           exit_at: td.exit_at as string,
           fees: td.fees,
           exit_condition: td.exit_condition,
-          notes: td.notes,
+          ticket,
         }, fills);
         updated++;
         continue;
@@ -936,8 +947,8 @@ export async function importTradesFromCsv(
            trade_style, entry_condition, exit_condition,
            direction, status, entry_price, exit_price, size,
            stop_loss, take_profit, entry_at, exit_at,
-           fees, followed_rules, notes, reflection)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           fees, followed_rules, notes, reflection, ticket)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           td.account_id, td.instrument_id,
           td.strategy_id, td.emotion_id,
@@ -948,6 +959,7 @@ export async function importTradesFromCsv(
           td.entry_at, td.exit_at,
           td.fees, td.followed_rules,
           td.notes, td.reflection,
+          ticket,
         ],
       );
       const tradeId = tradeResult.lastInsertRowId;

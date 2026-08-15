@@ -10,7 +10,7 @@ function makeTrade(overrides: Partial<TradeWithInstrument>): TradeWithInstrument
     direction: 'long', status: 'closed', entry_price: 100, exit_price: 101,
     size: 1, stop_loss: null, take_profit: null,
     entry_at: '2026-08-01T10:00:00', exit_at: '2026-08-01T11:00:00',
-    fees: 0, followed_rules: null, notes: null, reflection: null,
+    fees: 0, followed_rules: null, notes: null, reflection: null, ticket: null,
     created_at: '2026-08-01T10:00:00', updated_at: '2026-08-01T11:00:00',
     symbol: 'TEST', instrument_name: null, quote_currency: 'USD',
     price_mode: 'standard', contract_size: 100, asset_class: 'equity',
