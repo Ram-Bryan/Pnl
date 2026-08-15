@@ -26,7 +26,7 @@ const EMPTY_STATS: StatsResult = {
 
 export function useDashboard(): DashboardData {
   const db = useSQLiteContext();
-  const { displayUnit } = useAccountSetting();
+  const { displayUnit, currentPrices } = useAccountSetting();
   const [trades, setTrades] = useState<TradeWithInstrument[]>([]);
   const [weeklyGoal, setWeeklyGoal] = useState<Goal | null>(null);
   const [dailyLossLimit, setDailyLossLimit] = useState<Goal | null>(null);
@@ -69,8 +69,9 @@ export function useDashboard(): DashboardData {
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   // Stats are recomputed reactively so the dashboard converts immediately when
-  // the display unit is toggled in Settings.
-  const stats = useMemo(() => computeStats(trades), [trades]);
+  // the display unit is toggled in Settings, and floats open positions as mark
+  // prices are entered/changed.
+  const stats = useMemo(() => computeStats(trades, currentPrices), [trades, currentPrices]);
 
   return { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error, refetch: fetch };
 }

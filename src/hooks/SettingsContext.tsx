@@ -8,8 +8,10 @@ type SettingsContextValue = {
   accountType: AccountType;
   displayUnit: DisplayUnit;
   loading: boolean;
+  currentPrices: Record<string, number>;
   setAccountType: (value: AccountType) => Promise<void>;
   setDisplayUnit: (value: DisplayUnit) => Promise<void>;
+  setCurrentPrice: (symbol: string, price: number | null) => Promise<void>;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -24,6 +26,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const db = useSQLiteContext();
   const [accountType, setAccountTypeState] = useState<AccountType>('standard');
   const [displayUnit, setDisplayUnitState] = useState<DisplayUnit>('usd');
+  const [currentPrices, setCurrentPricesState] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,9 +38,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const accountTypeValue = (account?.price_mode ?? 'standard') as AccountType;
         const stored = settings['displayUnit'];
         const defaultUnit: DisplayUnit = accountTypeValue === 'cents' ? 'usc' : 'usd';
+
+        // Mark prices are persisted per symbol under current_price_<SYMBOL> so
+        // open positions keep their floating P&L across app restarts.
+        const markPrices: Record<string, number> = {};
+        for (const [key, value] of Object.entries(settings)) {
+          if (key.startsWith('current_price_')) {
+            const num = parseFloat(value);
+            if (Number.isFinite(num)) markPrices[key.slice('current_price_'.length)] = num;
+          }
+        }
+
         if (active) {
           setAccountTypeState(accountTypeValue);
           setDisplayUnitState(stored === 'usc' || stored === 'usd' ? stored : defaultUnit);
+          setCurrentPricesState(markPrices);
         }
       } catch (e) {
         console.error('SettingsProvider: failed to load settings', e);
@@ -60,9 +75,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setDisplayUnitState(value);
   }, [db]);
 
+  const setCurrentPrice = useCallback(async (symbol: string, price: number | null) => {
+    const key = `current_price_${symbol.toUpperCase().trim()}`;
+    if (price == null || !Number.isFinite(price)) {
+      await db.runAsync('DELETE FROM settings WHERE key = ?', [key]);
+      setCurrentPricesState(prev => {
+        const next = { ...prev };
+        delete next[symbol.toUpperCase().trim()];
+        return next;
+      });
+    } else {
+      await setSetting(db, key, String(price));
+      setCurrentPricesState(prev => ({ ...prev, [symbol.toUpperCase().trim()]: price }));
+    }
+  }, [db]);
+
   const value = useMemo(
-    () => ({ accountType, displayUnit, loading, setAccountType, setDisplayUnit }),
-    [accountType, displayUnit, loading, setAccountType, setDisplayUnit]
+    () => ({ accountType, displayUnit, loading, currentPrices, setAccountType, setDisplayUnit, setCurrentPrice }),
+    [accountType, displayUnit, loading, currentPrices, setAccountType, setDisplayUnit, setCurrentPrice]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

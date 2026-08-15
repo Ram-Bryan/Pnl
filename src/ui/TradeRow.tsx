@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-import { TradeWithInstrument, computeTradePnl } from '../stats/computeStats';
+import { TradeWithInstrument, computeTradePnl, computeUnrealizedPnl } from '../stats/computeStats';
 import { computeInvestedUsd, AccountType } from '../stats/tradeMath';
 import { formatPnl, DisplayUnit } from '../lib/format';
 
@@ -31,6 +31,7 @@ export function TradeRow({
   index = 0,
   accountType = 'standard',
   displayUnit = 'usd',
+  currentPrice,
   selectable = false,
   selected = false,
   onLongPress,
@@ -40,6 +41,7 @@ export function TradeRow({
   index?: number;
   accountType?: AccountType;
   displayUnit?: DisplayUnit;
+  currentPrice?: number;
   selectable?: boolean;
   selected?: boolean;
   onLongPress?: () => void;
@@ -51,9 +53,14 @@ export function TradeRow({
   });
 
   const isOpen = trade.status === 'open';
-  const pnl = isOpen ? 0 : computeTradePnl(trade);
-  const pnlColor = isOpen ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
-  const pnlFormatted = isOpen ? '–' : formatPnl(pnl, displayUnit);
+  // Open trades show floating P&L at their mark price; without one they can't
+  // be valued and stay a dash.
+  const hasMark = isOpen && currentPrice != null && Number.isFinite(currentPrice);
+  const pnl = isOpen
+    ? (hasMark ? computeUnrealizedPnl(trade, currentPrice) : 0)
+    : computeTradePnl(trade);
+  const pnlColor = isOpen && !hasMark ? '#A8AEC1' : pnl >= 0 ? '#00E68A' : '#FF4D6A';
+  const pnlFormatted = isOpen && !hasMark ? '–' : formatPnl(pnl, displayUnit);
 
   const directionColor = trade.direction === 'long' ? '#00E68A' : '#FF4D6A';
   const dirBg = trade.direction === 'long' ? 'rgba(0,230,138,0.1)' : 'rgba(255,77,106,0.1)';

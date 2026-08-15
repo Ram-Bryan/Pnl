@@ -13,7 +13,7 @@ import { Sheet } from '../../src/ui/Sheet';
 import { useTrades } from '../../src/hooks/useTrades';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { useCsvImport } from '../../src/hooks/useCsvImport';
-import { computeTradePnl } from '../../src/stats/computeStats';
+import { computeTradePnl, computeUnrealizedPnl } from '../../src/stats/computeStats';
 import { computeInvestedUsd } from '../../src/stats/tradeMath';
 import { resolveQuoteCurrency } from '../../src/lib/quoteCurrency';
 import { DisplayUnit } from '../../src/lib/format';
@@ -325,7 +325,7 @@ export default function Trades() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { trades, loading, refetch, removeTrades } = useTrades();
-  const { accountType, displayUnit } = useAccountSetting();
+  const { accountType, displayUnit, currentPrices } = useAccountSetting();
   const { importing, summary, pickFile, confirmImport, cancelImport } = useCsvImport({
     onImported: () => refetch(),
   });
@@ -394,7 +394,9 @@ export default function Trades() {
       if (applied.sizeMin && invested < parseFloat(applied.sizeMin)) return false;
       if (applied.sizeMax && invested > parseFloat(applied.sizeMax)) return false;
 
-      const pnl = computeTradePnl(t);
+      const pnl = t.status === 'open'
+        ? computeUnrealizedPnl(t, currentPrices[t.symbol])
+        : computeTradePnl(t);
       const pnlUnit = displayUnit === 'usc' ? 0.01 : 1;
       if (applied.pnlMin && pnl < parseFloat(applied.pnlMin) * pnlUnit) return false;
       if (applied.pnlMax && pnl > parseFloat(applied.pnlMax) * pnlUnit) return false;
@@ -414,7 +416,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, search, applied, displayUnit, accountType]);
+  }, [trades, search, applied, displayUnit, accountType, currentPrices]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -646,6 +648,7 @@ export default function Trades() {
               index={index}
               accountType={accountType}
               displayUnit={displayUnit}
+              currentPrice={currentPrices[item.symbol]}
               selectable={selectionMode}
               selected={selectedIds.has(item.id)}
               onPress={() => selectionMode ? toggleSelect(item.id) : router.push(`/trade/${item.id}`)}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, TouchableOpacity, Alert } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Segmented, NumericInput, Field } from '../../src/ui';
@@ -65,12 +65,61 @@ const TradingStartDatePicker = ({
 export default function SettingsTab() {
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
-  const { accountType, displayUnit, setAccountType, setDisplayUnit, loading } = useAccountSetting();
+  const { accountType, displayUnit, setAccountType, setDisplayUnit, loading, currentPrices, setCurrentPrice } = useAccountSetting();
 
   const [weeklyGoal, setWeeklyGoal] = useState<string>('');
   const [dailyLossLimit, setDailyLossLimit] = useState<string>('');
   const [tradingStartDate, setTradingStartDate] = useState<string>('');
   const [savingPlan, setSavingPlan] = useState(false);
+
+  const [openSymbols, setOpenSymbols] = useState<string[]>([]);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [savingPrices, setSavingPrices] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const rows = await db.getAllAsync<{ symbol: string }>(
+            `SELECT DISTINCT i.symbol
+             FROM trades t
+             JOIN instruments i ON i.id = t.instrument_id
+             WHERE t.status = 'open'
+             ORDER BY i.symbol`
+          );
+          if (!active) return;
+          const symbols = rows.map(r => r.symbol);
+          setOpenSymbols(symbols);
+          const drafts: Record<string, string> = {};
+          for (const s of symbols) {
+            const v = currentPrices[s];
+            drafts[s] = v != null ? String(v) : '';
+          }
+          setPriceDrafts(drafts);
+        } catch (e) {
+          console.error('Failed to load open symbols:', e);
+        }
+      })();
+      return () => { active = false; };
+    }, [db, currentPrices]),
+  );
+
+  const handleSavePrices = async () => {
+    setSavingPrices(true);
+    try {
+      for (const symbol of openSymbols) {
+        const raw = priceDrafts[symbol] ?? '';
+        const num = parseFloat(raw.replace(/,/g, ''));
+        await setCurrentPrice(symbol, Number.isFinite(num) ? num : null);
+      }
+    } catch (e) {
+      console.error('Failed to save current prices:', e);
+      Alert.alert('Save Failed', e instanceof Error ? e.message : 'Failed to save current prices.');
+    } finally {
+      setSavingPrices(false);
+    }
+  };
 
   useEffect(() => {
     const loadGoals = async () => {
@@ -184,6 +233,51 @@ export default function SettingsTab() {
                 <Text className="text-white font-bold text-base">Trading Start Date</Text>
               </View>
               <TradingStartDatePicker value={tradingStartDate} onChange={setTradingStartDate} />
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(400).delay(50).springify()}>
+            <View className="bg-[#1a1b24] border border-[#2b2d3a] rounded-2xl p-4 mb-4">
+              <View className="flex-row items-center gap-x-2 mb-4">
+                <View className="w-8 h-8 rounded-xl bg-[#00E68A]/10 border border-[#00E68A]/20 items-center justify-center">
+                  <Ionicons name="cash-outline" size={16} color="#00E68A" />
+                </View>
+                <Text className="text-white font-bold text-base">Current Prices</Text>
+              </View>
+              <View className="bg-[#13141a] rounded-xl p-3 border border-[#1e1d2b] mb-3">
+                <Text className="text-[#6b6880] text-[11px] font-medium leading-4">
+                  Set a price for each open position so its floating P&L counts toward your totals. Leave a field empty and save to clear it.
+                </Text>
+              </View>
+              {openSymbols.length === 0 ? (
+                <Text className="text-[#6b6880] text-sm font-medium">No open positions.</Text>
+              ) : (
+                <>
+                  {openSymbols.map(symbol => (
+                    <View key={symbol} className="mb-3">
+                      <Field label={symbol}>
+                        <NumericInput
+                          value={priceDrafts[symbol] ?? ''}
+                          onChangeText={v => setPriceDrafts(prev => ({ ...prev, [symbol]: v }))}
+                          placeholder="0.00"
+                          align="left"
+                        />
+                      </Field>
+                    </View>
+                  ))}
+                  <Pressable
+                    onPress={handleSavePrices}
+                    disabled={savingPrices}
+                    className={`mt-1 rounded-xl py-3.5 items-center justify-center ${savingPrices ? 'bg-[#2d7df6]/50' : 'bg-[#2d7df6]'}`}
+                  >
+                    {savingPrices ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text className="text-white font-bold tracking-wide">Save Current Prices</Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </View>
           </Animated.View>
 

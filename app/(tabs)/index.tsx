@@ -26,7 +26,7 @@ import { useDashboard } from '../../src/hooks/useDashboard';
 import { useAccountSetting } from '../../src/hooks/SettingsContext';
 import { useCsvImport } from '../../src/hooks/useCsvImport';
 import { formatMoney, formatPnl, DisplayUnit } from '../../src/lib/format';
-import { computeTradePnl } from '../../src/stats/computeStats';
+import { computeTradePnl, computeUnrealizedPnl, TradeWithInstrument } from '../../src/stats/computeStats';
 import { getGoalHistory, getSetting } from '../../src/db/database';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Ionicons } from '@expo/vector-icons';
@@ -710,8 +710,18 @@ export default function Dashboard() {
   const db = useSQLiteContext();
   const router = useRouter();
   const { stats, trades, weeklyGoal, dailyLossLimit, displayUnit, loading, error, refetch } = useDashboard();
-  const { accountType } = useAccountSetting();
+  const { accountType, currentPrices } = useAccountSetting();
   const csvImport = useCsvImport({ onImported: () => refetch() });
+
+  // P&L per trade for dashboard displays: closed trades are realized, open
+  // trades float to their current mark price (0 when none is set).
+  const pnlOf = React.useCallback(
+    (trade: TradeWithInstrument) =>
+      trade.status === 'open'
+        ? computeUnrealizedPnl(trade, currentPrices[trade.symbol])
+        : computeTradePnl(trade),
+    [currentPrices],
+  );
 
   const [period, setPeriod] = useState<Period>('today');
   const todayUtc = useMemo(() => {
@@ -759,7 +769,7 @@ export default function Dashboard() {
             const dStr = (t.exit_at ?? t.entry_at).slice(0, 10);
             return dStr >= weekStart && dStr <= weekEnd;
           })
-          .reduce((sum, t) => sum + computeTradePnl(t), 0);
+          .reduce((sum, t) => sum + pnlOf(t), 0);
 
         // find goal active during this week
         const activeGoal = history.find(g =>
@@ -795,11 +805,11 @@ export default function Dashboard() {
     const map: Record<string, number> = {};
     trades.forEach(t => {
       const d = (t.exit_at ?? t.entry_at).slice(0, 10);
-      const pnl = computeTradePnl(t);
+      const pnl = pnlOf(t);
       map[d] = (map[d] || 0) + pnl;
     });
     return map;
-  }, [trades]);
+  }, [trades, pnlOf]);
 
   const currentWeek = useMemo(() => getWeekDays(viewDate), [viewDate]);
   const currentMonth = useMemo(() => getMonthDays(viewDate), [viewDate]);
@@ -811,7 +821,7 @@ export default function Dashboard() {
       const todayTrades = [...trades]
         .filter(t => (t.exit_at ?? t.entry_at).slice(0, 10) === selectedDate)
         .reverse();
-      dataset = todayTrades.map(t => ({ pnl: computeTradePnl(t), timeStr: t.exit_at ?? t.entry_at }));
+      dataset = todayTrades.map(t => ({ pnl: pnlOf(t), timeStr: t.exit_at ?? t.entry_at }));
     } else if (period === 'week') {
       dataset = currentWeek.map(d => ({ pnl: dailyPnls[d] || 0, timeStr: d }));
     } else if (period === 'month') {
@@ -825,7 +835,7 @@ export default function Dashboard() {
           dayMap[day] = 0;
           allDays.push(day);
         }
-        dayMap[day] += computeTradePnl(t);
+        dayMap[day] += pnlOf(t);
       });
       dataset = allDays.map(d => ({ pnl: dayMap[d], timeStr: d }));
     }
@@ -909,7 +919,7 @@ export default function Dashboard() {
     }
 
     return { chartPoints: points, xTicks: ticks };
-  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls]);
+  }, [period, trades, selectedDate, currentWeek, currentMonth, dailyPnls, pnlOf]);
 
   // Trades visible in the bottom list: ALL trades for the current period
   const visibleTrades = useMemo(() => {
@@ -929,8 +939,8 @@ export default function Dashboard() {
 
   // PnL hero: dynamically computed from the currently visible trades
   const selectedPnl = useMemo(() => {
-    return visibleTrades.reduce((sum, t) => sum + computeTradePnl(t), 0);
-  }, [visibleTrades]);
+    return visibleTrades.reduce((sum, t) => sum + pnlOf(t), 0);
+  }, [visibleTrades, pnlOf]);
 
   const periodLabel = useMemo(() => {
     if (period === 'today') return "Today's P&L";
@@ -1080,6 +1090,7 @@ export default function Dashboard() {
                   trade={trade}
                   accountType={accountType}
                   displayUnit={displayUnit}
+                  currentPrice={currentPrices[trade.symbol]}
                   onPress={() => router.push(`/trade/${trade.id}`)}
                 />
               ))}
