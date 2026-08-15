@@ -541,7 +541,6 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
   }));
 
   const zeroY = yForValue(0);
-  const isZeroVisible = minVal < 0 && maxVal > 0;
 
   // Single brand color for the whole series — no green/red split by final P&L.
   const primaryColor = '#4D9EFF';
@@ -581,13 +580,15 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
             );
           })}
 
-          {/* Solid zero (x-axis) reference — the boundary between up and down */}
-          {isZeroVisible && (
-            <Line
-              x1={PAD_LEFT} y1={zeroY} x2={dim.w - PAD_RIGHT} y2={zeroY}
-              stroke="#444b66" strokeWidth="2"
-            />
-          )}
+          {/* Solid zero (x-axis) reference — the boundary between up and down.
+              The y scale always spans zero (rawMin/rawMax clamp to 0), so the
+              zero line always sits inside the plot. Draw it unconditionally:
+              all-negative series (upper endpoint 0) would otherwise lose the
+              axis entirely. */}
+          <Line
+            x1={PAD_LEFT} y1={zeroY} x2={dim.w - PAD_RIGHT} y2={zeroY}
+            stroke="#444b66" strokeWidth="2"
+          />
 
           {/* Area */}
           <Path d={pathData} fill="url(#areaGrad)" />
@@ -871,7 +872,12 @@ export default function Dashboard() {
         cumulative += d.pnl;
         points.push({ value: cumulative, tooltip: d.timeStr, pct: (i + 1) / Math.max(1, dataset.length) });
       });
-      // No x-axis items on month (YouTube style)
+      const lastDay = parseInt(currentMonth[currentMonth.length - 1]?.slice(8, 10) ?? '31', 10);
+      ticks.push(
+        { label: '1', pct: 0 },
+        { label: `${Math.min(15, lastDay)}`, pct: 0.5 },
+        { label: `${lastDay}`, pct: 1 },
+      );
     } else {
       let cumulative = 0;
       points.push({ value: 0, tooltip: dataset[0]?.timeStr || 'First', pct: 0 });
@@ -879,7 +885,15 @@ export default function Dashboard() {
         cumulative += d.pnl;
         points.push({ value: cumulative, tooltip: d.timeStr, pct: (i + 1) / Math.max(1, dataset.length) });
       });
-      // No x-axis items on all time 
+      const dayLabel = (ymd: string | undefined) => {
+        if (!ymd) return '';
+        return `${parseInt(ymd.slice(8, 10), 10)} ${MONTHS[parseInt(ymd.slice(5, 7), 10) - 1]}`;
+      };
+      ticks.push(
+        { label: dayLabel(dataset[0]?.timeStr), pct: 0 },
+        { label: dayLabel(dataset[Math.floor((dataset.length - 1) / 2)]?.timeStr), pct: 0.5 },
+        { label: dayLabel(dataset[dataset.length - 1]?.timeStr), pct: 1 },
+      );
     }
 
     // Fix overlap if trades happen at exactly same time (ensure monotonic strict increase)
