@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parseCsvRows, resolveInstrument, csvRowToFills, normalizeImportedDateTime, defaultContractSizeFor } from './csvParser';
+import { parseCsvRows, resolveInstrument, csvRowToFills, csvRowToTradeDraft, normalizeImportedDateTime, defaultContractSizeFor } from './csvParser';
 
 const SAMPLE_CSV = `ticket,opening_time_utc,closing_time_utc,type,lots,original_position_size,symbol,opening_price,closing_price,stop_loss,take_profit,commission,swap,profit,equity,margin_level,close_reason
 421790567,2026-08-14T09:19:24,2026-08-14T10:31:25,buy,0.01,0.01,XAUUSDc,4349.4,4349.896,4349.896,4361.814,,,0.5,,,sl
 420110897,2026-08-13T14:17:46,2026-08-13T14:30:13,sell,0.01,0.01,XAUUSDc,4375.383,4362.796,4389.881,4362.796,,,12.6,,,tp`;
+
+const OPEN_SAMPLE = `ticket,opening_time_utc,type,original_position_size,symbol,opening_price,commission
+422398499,2026-08-14T15:00:34,sell,0.01,XAUUSDc,4383.649,
+422399028,2026-08-14T14:53:09,sell,0.01,XAUUSDc,4382.318,`;
 
 describe('parseCsvRows', () => {
   it('parses a valid CSV into rows', () => {
@@ -123,5 +127,46 @@ describe('csvRowToFills', () => {
     expect(fills[0].price).toBe(4349.4);
     expect(fills[1].side).toBe('exit');
     expect(fills[1].price).toBe(4349.896);
+  });
+});
+
+describe('open-positions format', () => {
+  it('parses an open-positions export as open trades', () => {
+    const rows = parseCsvRows(OPEN_SAMPLE);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].kind).toBe('open');
+    expect(rows[0].lots).toBe(0.01); // sized by original_position_size
+    expect(rows[0].symbol).toBe('XAUUSDc');
+    expect(rows[0].closing_price).toBeNull();
+    expect(rows[0].closing_time_utc).toBeNull();
+    expect(rows[0].swap).toBeNull();
+    expect(rows[0].close_reason).toBeNull();
+    expect(rows[0].commission).toBe(0);
+  });
+
+  it('maps an open row to an open trade draft', () => {
+    const draft = csvRowToTradeDraft(parseCsvRows(OPEN_SAMPLE)[0], 1, 9);
+    expect(draft.status).toBe('open');
+    expect(draft.direction).toBe('short');
+    expect(draft.entry_price).toBe(4383.649);
+    expect(draft.exit_price).toBeNull();
+    expect(draft.exit_at).toBeNull();
+    expect(draft.fees).toBe(0);
+    expect(draft.notes).toBe('MT5 ticket: 422398499');
+  });
+
+  it('creates a single entry fill for an open trade', () => {
+    const fills = csvRowToFills(parseCsvRows(OPEN_SAMPLE)[0]);
+    expect(fills).toHaveLength(1);
+    expect(fills[0].side).toBe('entry');
+    expect(fills[0].price).toBe(4383.649);
+  });
+
+  it('still marks the history export as closed', () => {
+    expect(parseCsvRows(SAMPLE_CSV)[0].kind).toBe('closed');
+  });
+
+  it('throws for an unrecognized header set', () => {
+    expect(() => parseCsvRows('foo,bar\n1,2')).toThrow('Missing required column');
   });
 });

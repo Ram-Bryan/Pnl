@@ -2,19 +2,20 @@ import { TradeDraft } from '../db/database';
 import { AssetClass } from '../db/schema';
 
 export type CsvTradeRow = {
+  kind: 'open' | 'closed';
   ticket: string;
   opening_time_utc: string;
-  closing_time_utc: string;
+  closing_time_utc: string | null;
   type: 'buy' | 'sell';
   lots: number;
   symbol: string;
   opening_price: number;
-  closing_price: number;
+  closing_price: number | null;
   stop_loss: number | null;
   take_profit: number | null;
   commission: number;
-  swap: number;
-  close_reason: string;
+  swap: number | null;
+  close_reason: string | null;
 };
 
 export function parseCsvRows(csv: string): CsvTradeRow[] {
@@ -22,10 +23,27 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
   if (lines.length < 2) return [];
 
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const required = [
-    'ticket', 'opening_time_utc', 'closing_time_utc', 'type', 'lots',
-    'symbol', 'opening_price', 'closing_price', 'commission', 'swap', 'close_reason',
-  ];
+  const sizeCol = headers.includes('lots') ? 'lots' : 'original_position_size';
+
+  // Auto-detect which MT5 export this is: a history report has closing
+  // columns; an open-positions report has only opening columns.
+  const isClosed = headers.includes('closing_time_utc') && headers.includes('closing_price');
+  const isOpen =
+    !isClosed &&
+    headers.includes('opening_time_utc') &&
+    headers.includes('opening_price') &&
+    headers.includes('type') &&
+    headers.includes('symbol') &&
+    headers.includes(sizeCol);
+  if (!isClosed && !isOpen) {
+    throw new Error('Missing required column');
+  }
+  const kind = isClosed ? 'closed' : 'open';
+
+  const required = isClosed
+    ? ['ticket', 'opening_time_utc', 'closing_time_utc', 'type', sizeCol,
+       'symbol', 'opening_price', 'closing_price', 'commission', 'swap', 'close_reason']
+    : ['ticket', 'opening_time_utc', 'type', sizeCol, 'symbol', 'opening_price', 'commission'];
   for (const col of required) {
     if (!headers.includes(col)) {
       throw new Error(`Missing required column: ${col}`);
@@ -54,20 +72,27 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
     const type = get('type').toLowerCase();
     if (type !== 'buy' && type !== 'sell') continue;
 
+    const closingPrice = isClosed ? getNumOrNull('closing_price') : null;
+    const closingTime = isClosed ? normalizeImportedDateTime(get('closing_time_utc')) : null;
+    // A closed row must carry its exit data; otherwise it can't be priced and
+    // would silently vanish from stats — skip it instead.
+    if (isClosed && (closingPrice === null || !closingTime)) continue;
+
     rows.push({
+      kind,
       ticket: get('ticket'),
       opening_time_utc: normalizeImportedDateTime(get('opening_time_utc')),
-      closing_time_utc: normalizeImportedDateTime(get('closing_time_utc')),
+      closing_time_utc: closingTime,
       type,
-      lots: getNum('lots'),
+      lots: getNum(sizeCol),
       symbol: get('symbol'),
       opening_price: getNum('opening_price'),
-      closing_price: getNum('closing_price'),
+      closing_price: closingPrice,
       stop_loss: getNumOrNull('stop_loss'),
       take_profit: getNumOrNull('take_profit'),
       commission: getNum('commission'),
-      swap: getNum('swap'),
-      close_reason: get('close_reason'),
+      swap: isClosed ? getNum('swap') : null,
+      close_reason: isClosed ? get('close_reason') : null,
     });
   }
 
@@ -196,7 +221,7 @@ export function csvRowToTradeDraft(
     account_id: accountId,
     instrument_id: instrumentId,
     direction: (row.type === 'buy' ? 'long' : 'short') as 'long' | 'short',
-    status: 'closed' as const,
+    status: (row.kind === 'open' ? 'open' : 'closed') as 'open' | 'closed',
     entry_price: row.opening_price,
     exit_price: row.closing_price,
     size: row.lots,
@@ -204,7 +229,7 @@ export function csvRowToTradeDraft(
     take_profit: row.take_profit,
     entry_at: row.opening_time_utc,
     exit_at: row.closing_time_utc,
-    fees: row.commission + row.swap,
+    fees: row.commission + (row.swap ?? 0),
     exit_condition: row.close_reason || null,
     notes: `MT5 ticket: ${row.ticket}`,
     strategy_id: null,
@@ -217,7 +242,7 @@ export function csvRowToTradeDraft(
 }
 
 export function csvRowToFills(row: CsvTradeRow): FillRow[] {
-  return [
+  const fills: FillRow[] = [
     {
       side: 'entry',
       price: row.opening_price,
@@ -225,12 +250,16 @@ export function csvRowToFills(row: CsvTradeRow): FillRow[] {
       note: null,
       occurred_at: row.opening_time_utc,
     },
-    {
+  ];
+  // Open positions have no exit yet.
+  if (row.kind === 'closed' && row.closing_price != null && row.closing_time_utc) {
+    fills.push({
       side: 'exit',
       price: row.closing_price,
       quantity: row.lots,
       note: null,
       occurred_at: row.closing_time_utc,
-    },
-  ];
+    });
+  }
+  return fills;
 }
