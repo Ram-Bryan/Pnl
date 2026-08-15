@@ -482,10 +482,17 @@ type TrendlineProps = {
   xTicks: { label: string; pct: number }[];
 };
 
+// Y-axis labels must never collapse to "0"/"-0" for sub-unit ticks. Decimals
+// scale with magnitude in the display unit; anything that rounds to exactly
+// zero is shown as plain "0" (never "-0").
 function formatPnlShort(v: number, displayUnit: DisplayUnit = 'usd'): string {
   const displayVal = displayUnit === 'usc' ? v * 100 : v;
-  if (Math.abs(displayVal) >= 1000) return `${(displayVal / 1000).toFixed(1)}k`;
-  return `${Math.round(displayVal)}`;
+  const rounded = Math.round(displayVal * 100) / 100;
+  if (rounded === 0) return '0';
+  const abs = Math.abs(rounded);
+  if (abs >= 1000) return `${(rounded / 1000).toFixed(1)}k`;
+  if (abs < 100) return rounded.toFixed(2);
+  return `${Math.round(rounded)}`;
 }
 
 const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUnit: DisplayUnit }) => {
@@ -536,8 +543,8 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
   const zeroY = yForValue(0);
   const isZeroVisible = minVal < 0 && maxVal > 0;
 
-  const finalPnl = points[n - 1].value;
-  const primaryColor = finalPnl > 0 ? '#00E68A' : finalPnl < 0 ? '#FF4D6A' : '#6b6880';
+  // Single brand color for the whole series — no green/red split by final P&L.
+  const primaryColor = '#4D9EFF';
 
   const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
 
@@ -574,11 +581,11 @@ const Trendline = ({ points, xTicks, displayUnit }: TrendlineProps & { displayUn
             );
           })}
 
-          {/* Zero grid line accent */}
+          {/* Solid zero (x-axis) reference — the boundary between up and down */}
           {isZeroVisible && (
             <Line
               x1={PAD_LEFT} y1={zeroY} x2={dim.w - PAD_RIGHT} y2={zeroY}
-              stroke="#2d2d42" strokeWidth="1.5"
+              stroke="#444b66" strokeWidth="2"
             />
           )}
 
