@@ -804,13 +804,52 @@ export async function getGoalHistory(
 // ============================================================
 
 import { CsvTradeRow, resolveInstrument, csvRowToTradeDraft, csvRowToFills } from '../lib/csvParser';
+import { planImportAction } from '../lib/importPlan';
+
+type ImportCloseUpdate = {
+  status: 'closed';
+  entry_price: number;
+  exit_price: number;
+  size: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  entry_at: string;
+  exit_at: string;
+  fees: number;
+  exit_condition: string | null;
+  notes: string | null;
+};
+
+// Upgrades an imported open trade to closed using only the columns an MT5
+// history row knows about, so strategy/emotion/notes/reflection the user set
+// on the open trade are preserved. Must be called inside an open transaction.
+async function closeTradeFromImport(
+  db: SQLiteDatabase,
+  tradeId: number,
+  update: ImportCloseUpdate,
+  fills: FillRow[],
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE trades SET
+       status = ?, entry_price = ?, exit_price = ?, size = ?,
+       stop_loss = ?, take_profit = ?, entry_at = ?, exit_at = ?,
+       fees = ?, exit_condition = ?, notes = ?,
+       updated_at = datetime('now')
+     WHERE id = ?`,
+    [update.status, update.entry_price, update.exit_price, update.size,
+     update.stop_loss, update.take_profit, update.entry_at, update.exit_at,
+     update.fees, update.exit_condition, update.notes, tradeId],
+  );
+  await replaceFills(db, tradeId, fills);
+}
 
 export async function importTradesFromCsv(
   db: SQLiteDatabase,
   rows: CsvTradeRow[],
   accountId: number,
-): Promise<{ imported: number; symbols: number; skipped: number; warnCents: boolean }> {
+): Promise<{ imported: number; updated: number; symbols: number; skipped: number; warnCents: boolean }> {
   let imported = 0;
+  let updated = 0;
   let symbols = 0;
   let skipped = 0;
   let warnCents = false;
@@ -818,27 +857,26 @@ export async function importTradesFromCsv(
   await db.withTransactionAsync(async () => {
     const account = await getFirstAccount(db);
     const accountIsCents = account?.price_mode === 'cents';
-    // Tracks tickets seen in this batch so a file containing the same ticket
-    // twice doesn't create duplicates either.
-    const batchTickets = new Set<string>();
 
     for (const row of rows) {
       const draft = resolveInstrument(row.symbol);
 
       // Idempotency: re-importing an MT5 report must not duplicate trades.
-      // The ticket is stored in notes as "MT5 ticket: <ticket>"; skip rows
-      // whose ticket already exists in the DB or earlier in this batch.
+      // The ticket is stored in notes as "MT5 ticket: <ticket>" for both open
+      // and closed imports; statements inside this transaction see earlier
+      // inserts, so a ticket repeated in one file is naturally skipped too.
       const ticket = row.ticket.trim();
-      if (ticket) {
-        const existing = await db.getFirstAsync<{ id: number }>(
-          'SELECT id FROM trades WHERE notes = ? LIMIT 1',
-          [`MT5 ticket: ${ticket}`],
-        );
-        if (existing || batchTickets.has(ticket)) {
-          skipped++;
-          continue;
-        }
-        batchTickets.add(ticket);
+      const existing = ticket
+        ? await db.getFirstAsync<{ id: number; status: TradeStatus }>(
+            'SELECT id, status FROM trades WHERE notes = ? LIMIT 1',
+            [`MT5 ticket: ${ticket}`],
+          )
+        : null;
+
+      const action = planImportAction(existing ? existing.status : 'none', row.kind);
+      if (action === 'skip') {
+        skipped++;
+        continue;
       }
 
       // A cents-account report (symbols ending in "c") is only priced right if
@@ -870,6 +908,28 @@ export async function importTradesFromCsv(
       }
 
       const td = csvRowToTradeDraft(row, accountId, instrument.id);
+      const fills = csvRowToFills(row);
+
+      if (action === 'upgrade' && existing) {
+        // The open position finally closed; fill in its exit data on the same
+        // record instead of inserting a duplicate or leaving it open forever.
+        await closeTradeFromImport(db, existing.id, {
+          status: 'closed',
+          entry_price: td.entry_price,
+          exit_price: td.exit_price as number,
+          size: td.size,
+          stop_loss: td.stop_loss,
+          take_profit: td.take_profit,
+          entry_at: td.entry_at,
+          exit_at: td.exit_at as string,
+          fees: td.fees,
+          exit_condition: td.exit_condition,
+          notes: td.notes,
+        }, fills);
+        updated++;
+        continue;
+      }
+
       const tradeResult = await db.runAsync(
         `INSERT INTO trades
           (account_id, instrument_id, strategy_id, emotion_id,
@@ -892,7 +952,6 @@ export async function importTradesFromCsv(
       );
       const tradeId = tradeResult.lastInsertRowId;
 
-      const fills = csvRowToFills(row);
       for (let i = 0; i < fills.length; i++) {
         const f = fills[i];
         await db.runAsync(
@@ -906,5 +965,5 @@ export async function importTradesFromCsv(
     }
   });
 
-  return { imported, symbols, skipped, warnCents };
+  return { imported, updated, symbols, skipped, warnCents };
 }
