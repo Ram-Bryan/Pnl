@@ -3,7 +3,9 @@ import { computeTradePnlInUsd } from './tradeMath';
 import { resolveQuoteCurrency } from '../lib/quoteCurrency';
 
 // Pure stats engine — no SQLite dependency.
-// P&L is ALWAYS computed here, never stored in the DB.
+// P&L is always derived here, never entered by hand. The only stored P&L value
+// is `realized_pnl` — the broker's own number carried verbatim from the MT5 CSV
+// for imported trades (source of truth); manual trades compute it from prices.
 
 export type TradeWithInstrument = {
   id: number;
@@ -27,6 +29,7 @@ export type TradeWithInstrument = {
   followed_rules: 0 | 1 | null;
   notes: string | null;
   reflection: string | null;
+  realized_pnl: number | null; // broker-realized net P&L in USD from CSV import; null for manual trades
   ticket: string | null;
   created_at: string;
   updated_at: string;
@@ -69,6 +72,13 @@ function roundPnlToAccountCent(pnlUsd: number, priceMode: 'standard' | 'cents'):
 
 export function computeTradePnl(trade: TradeWithInstrument): number {
   if (trade.exit_price == null) return 0;
+
+  // Imported trades carry the broker's realized profit verbatim from the CSV —
+  // the authoritative net-of-fees value for that trade. Manual trades have no
+  // stored P&L (null) and are computed from prices.
+  if (trade.realized_pnl != null) {
+    return roundPnlToAccountCent(trade.realized_pnl, trade.price_mode);
+  }
 
   return roundPnlToAccountCent(
     computeTradePnlInUsd({

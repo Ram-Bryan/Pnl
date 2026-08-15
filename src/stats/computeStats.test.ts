@@ -11,6 +11,7 @@ function makeTrade(overrides: Partial<TradeWithInstrument>): TradeWithInstrument
     size: 1, stop_loss: null, take_profit: null,
     entry_at: '2026-08-01T10:00:00', exit_at: '2026-08-01T11:00:00',
     fees: 0, followed_rules: null, notes: null, reflection: null, ticket: null,
+    realized_pnl: null,
     created_at: '2026-08-01T10:00:00', updated_at: '2026-08-01T11:00:00',
     symbol: 'TEST', instrument_name: null, quote_currency: 'USD',
     price_mode: 'standard', contract_size: 100, asset_class: 'equity',
@@ -90,6 +91,29 @@ describe('computeStats', () => {
     expect(stats.monthPnl).toBe(0);
     expect(stats.weekPnl).toBe(0);
     expect(stats.allTimePnl).toBe(1);
+  });
+
+  it('mixes stored realized P&L with computed manual P&L', () => {
+    const imported = makeTrade({
+      id: 1,
+      price_mode: 'cents',
+      realized_pnl: -0.5535, // -55.35 USC from the CSV profit column
+      entry_at: '2026-08-01T10:00:00',
+      exit_at: '2026-08-01T11:00:00',
+    });
+    const manual = makeTrade({
+      id: 2,
+      price_mode: 'cents',
+      size: 1,
+      contract_size: 100,
+      entry_price: 100,
+      exit_price: 100.01,
+      entry_at: '2026-08-02T10:00:00',
+      exit_at: '2026-08-02T11:00:00',
+    });
+    const stats = computeStats([imported, manual]);
+    // manual: 1 lot × 100 contract × 0.01 cents scale = 1 unit × 0.01 = 0.01
+    expect(stats.allTimePnl).toBeCloseTo(-0.5435, 6);
   });
 });
 
@@ -182,5 +206,27 @@ describe('computeTradePnl', () => {
     expect(hero).toBe(-0.001);
     expect(formatPnl(hero, 'usc')).toBe('0.10 USC');
     expect(formatPnl(hero, 'usd')).toBe('$0.001');
+  });
+
+  it('uses the CSV-realized P&L when stored, ignoring recomputed prices', () => {
+    // Imported trades: the broker's profit is authoritative (net of fees), so
+    // the prices that would otherwise imply a profit must not win.
+    const trade = makeTrade({
+      price_mode: 'cents',
+      entry_price: 100,
+      exit_price: 200,
+      size: 1,
+      contract_size: 100,
+      realized_pnl: -0.5535, // -55.35 USC
+    });
+    expect(computeTradePnl(trade)).toBe(-0.5535);
+  });
+
+  it('rounds the CSV-realized P&L to the account cent', () => {
+    const trade = makeTrade({
+      price_mode: 'cents',
+      realized_pnl: 0.123456,
+    });
+    expect(computeTradePnl(trade)).toBe(0.1235);
   });
 });

@@ -94,6 +94,7 @@ export type Trade = {
   followed_rules: 0 | 1 | null; // nullable tri-state
   notes: string | null;
   reflection: string | null;
+  realized_pnl: number | null; // broker-realized net P&L in USD from CSV import; null for manual trades
   ticket: string | null; // MT5 import ticket; null for manual trades
   created_at: string;
   updated_at: string;

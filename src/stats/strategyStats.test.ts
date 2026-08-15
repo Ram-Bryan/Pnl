@@ -10,6 +10,7 @@ function makeTrade(p: Partial<TradeWithInstrument>): TradeWithInstrument {
     size: 1, stop_loss: null, take_profit: null,
     entry_at: '2026-01-01T00:00:00', exit_at: '2026-01-01T00:00:00',
     fees: 0, followed_rules: null, notes: null, reflection: null, ticket: null,
+    realized_pnl: null,
     created_at: '2026-01-01T00:00:00', updated_at: '2026-01-01T00:00:00',
     symbol: 'AAPL', instrument_name: null, quote_currency: 'USD',
     price_mode: 'standard', contract_size: 1, asset_class: 'equity',

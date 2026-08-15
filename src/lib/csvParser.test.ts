@@ -27,6 +27,13 @@ describe('parseCsvRows', () => {
     expect(r.commission).toBe(0);
     expect(r.swap).toBe(0);
     expect(r.close_reason).toBe('sl');
+    expect(r.profit).toBe(0.5);
+  });
+
+  it('parses profit as null when the column is empty or absent', () => {
+    const rows = parseCsvRows(`ticket,opening_time_utc,closing_time_utc,type,lots,symbol,opening_price,closing_price,commission,swap,close_reason,profit
+1,2026-08-14T09:19:24,2026-08-14T10:31:25,buy,0.01,XAUUSDc,4349.4,4349.896,0,0,tp,`);
+    expect(rows[0].profit).toBeNull();
   });
 
   it('returns empty array for header-only CSV', () => {

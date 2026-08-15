@@ -16,6 +16,7 @@ export type CsvTradeRow = {
   commission: number;
   swap: number | null;
   close_reason: string | null;
+  profit: number | null;
 };
 
 export function parseCsvRows(csv: string): CsvTradeRow[] {
@@ -64,6 +65,10 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
       const v = get(key);
       return v ? parseFloat(v) : 0;
     };
+    const getNullableNum = (key: string): number | null => {
+      const v = get(key);
+      return v ? parseFloat(v) : null;
+    };
 
     const type = get('type').toLowerCase();
     if (type !== 'buy' && type !== 'sell') continue;
@@ -89,6 +94,7 @@ export function parseCsvRows(csv: string): CsvTradeRow[] {
       commission: getNum('commission'),
       swap: isClosed ? getNum('swap') : null,
       close_reason: isClosed ? get('close_reason') : null,
+      profit: isClosed ? getNullableNum('profit') : null,
     });
   }
 

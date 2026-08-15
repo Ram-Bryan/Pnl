@@ -133,6 +133,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       followed_rules INTEGER CHECK (followed_rules IN (0,1)),
       notes          TEXT,
       reflection     TEXT,
+      realized_pnl   REAL,
       created_at     TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -272,6 +273,12 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     );
   }
 
+  // --- v4 upgrade: CSV-realized P&L (additive; no-op on fresh installs) ---
+  const hasRealizedPnl = tradesCols.some((c) => c.name === 'realized_pnl');
+  if (!hasRealizedPnl) {
+    await db.execAsync(`ALTER TABLE trades ADD COLUMN realized_pnl REAL;`);
+  }
+
   const instrSql = await db.getFirstAsync<{ sql: string }>(
     `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'instruments'`
   );
@@ -392,7 +399,7 @@ export async function getAllTradesWithInstrument(db: SQLiteDatabase): Promise<Tr
 
 export async function insertTrade(
   db: SQLiteDatabase,
-  trade: Omit<Trade, 'id' | 'created_at' | 'updated_at' | 'ticket'>
+  trade: Omit<Trade, 'id' | 'created_at' | 'updated_at' | 'ticket' | 'realized_pnl'>
 ): Promise<number> {
   const result = await db.runAsync(
     `INSERT INTO trades
@@ -830,6 +837,7 @@ type ImportCloseUpdate = {
   fees: number;
   exit_condition: string | null;
   ticket: string;
+  realized_pnl: number | null;
 };
 
 // Upgrades an imported open trade to closed using only the columns an MT5
@@ -845,12 +853,12 @@ async function closeTradeFromImport(
     `UPDATE trades SET
        status = ?, entry_price = ?, exit_price = ?, size = ?,
        stop_loss = ?, take_profit = ?, entry_at = ?, exit_at = ?,
-       fees = ?, exit_condition = ?, ticket = ?,
+       fees = ?, exit_condition = ?, ticket = ?, realized_pnl = ?,
        updated_at = datetime('now')
      WHERE id = ?`,
     [update.status, update.entry_price, update.exit_price, update.size,
      update.stop_loss, update.take_profit, update.entry_at, update.exit_at,
-     update.fees, update.exit_condition, update.ticket, tradeId],
+     update.fees, update.exit_condition, update.ticket, update.realized_pnl, tradeId],
   );
   await replaceFills(db, tradeId, fills);
 }
@@ -873,6 +881,13 @@ export async function importTradesFromCsv(
     for (const row of rows) {
       const draft = resolveInstrument(row.symbol);
 
+      // The CSV profit column is the broker's realized net P&L for a closed
+      // trade (net of commission/swap), in the account's display currency.
+      // It's the source of truth for imported trades; manual trades stay null.
+      const realizedUsd = row.kind === 'closed' && row.profit != null
+        ? (accountIsCents ? row.profit / 100 : row.profit)
+        : null;
+
       // Idempotency: re-importing an MT5 report must not duplicate trades. The
       // ticket lives in its own column; statements inside this transaction see
       // earlier inserts, so a ticket repeated in one file is naturally skipped.
@@ -886,6 +901,14 @@ export async function importTradesFromCsv(
 
       const action = planImportAction(existing ? existing.status : 'none', row.kind);
       if (action === 'skip') {
+        // Re-import refreshes the CSV-realized P&L on existing closed rows so a
+        // file imported before this column existed still picks up exact values.
+        if (existing && existing.status === 'closed' && realizedUsd != null) {
+          await db.runAsync(
+            'UPDATE trades SET realized_pnl = ? WHERE id = ?',
+            [realizedUsd, existing.id],
+          );
+        }
         skipped++;
         continue;
       }
@@ -936,6 +959,7 @@ export async function importTradesFromCsv(
           fees: td.fees,
           exit_condition: td.exit_condition,
           ticket,
+          realized_pnl: realizedUsd,
         }, fills);
         updated++;
         continue;
@@ -947,8 +971,8 @@ export async function importTradesFromCsv(
            trade_style, entry_condition, exit_condition,
            direction, status, entry_price, exit_price, size,
            stop_loss, take_profit, entry_at, exit_at,
-           fees, followed_rules, notes, reflection, ticket)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           fees, followed_rules, notes, reflection, ticket, realized_pnl)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           td.account_id, td.instrument_id,
           td.strategy_id, td.emotion_id,
@@ -959,7 +983,7 @@ export async function importTradesFromCsv(
           td.entry_at, td.exit_at,
           td.fees, td.followed_rules,
           td.notes, td.reflection,
-          ticket,
+          ticket, realizedUsd,
         ],
       );
       const tradeId = tradeResult.lastInsertRowId;
