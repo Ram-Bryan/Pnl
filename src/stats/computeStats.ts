@@ -89,26 +89,29 @@ function toDateString(iso: string): string {
   return iso.slice(0, 10);
 }
 
-// Stored dates are naive local ISO (manual entries use local getters), so "today",
-// week start and month must be derived in the device's local time too. Using UTC
-// here shifts P&L into the wrong bucket for users outside UTC around midnight.
-function localYmd(d: Date): string {
+// Stored dates are naive UTC ISO: manual "now" entries use toISOString() and
+// imported CSV timestamps are kept verbatim in the export's UTC frame. So
+// "today", week start and month must be derived in UTC too — matching MT5's
+// server days and the dashboard calendars (getWeekDays/getMonthDays use
+// Date.UTC). Deriving them in local time would shift trades into the wrong
+// bucket for users outside UTC around midnight.
+function utcYmd(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
-function getWeekStart(d: Date): string {
-  const day = d.getDay();
-  const diff = d.getDate() - ((day + 6) % 7); // Monday as week start
+function getWeekStartUtc(d: Date): string {
+  const day = d.getUTCDay();
+  const diff = d.getUTCDate() - ((day + 6) % 7); // Monday as week start
   const monday = new Date(d);
-  monday.setDate(diff);
-  return localYmd(monday);
+  monday.setUTCDate(diff);
+  return utcYmd(monday);
 }
 
 export function computeStats(trades: TradeWithInstrument[]): StatsResult {
   const now = new Date();
-  const todayStr = localYmd(now);
-  const weekStartStr = getWeekStart(now);
+  const todayStr = utcYmd(now);
+  const weekStartStr = getWeekStartUtc(now);
   const monthStr = todayStr.slice(0, 7);
 
   const closed = trades.filter((t) => t.status === 'closed' && t.exit_price != null);

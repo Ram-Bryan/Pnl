@@ -706,13 +706,12 @@ export default function Dashboard() {
   const csvImport = useCsvImport({ onImported: () => refetch() });
 
   const [period, setPeriod] = useState<Period>('today');
-  const todayLocal = useMemo(() => {
-    const offset = new Date().getTimezoneOffset() * 60000;
-    return new Date(Date.now() - offset).toISOString().split('T')[0];
+  const todayUtc = useMemo(() => {
+    return new Date().toISOString().split('T')[0]; // UTC today
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState<string>(todayLocal);
-  const [viewDate, setViewDate] = useState<string>(todayLocal);
+  const [selectedDate, setSelectedDate] = useState<string>(todayUtc);
+  const [viewDate, setViewDate] = useState<string>(todayUtc);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const [goalHistoryVisible, setGoalHistoryVisible] = useState(false);
@@ -775,10 +774,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (period === 'today') {
-      setSelectedDate(todayLocal);
-      setViewDate(todayLocal);
+      setSelectedDate(todayUtc);
+      setViewDate(todayUtc);
     }
-  }, [period, todayLocal]);
+  }, [period, todayUtc]);
 
   useEffect(() => {
     setViewDate(selectedDate);

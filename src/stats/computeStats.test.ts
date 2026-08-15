@@ -52,6 +52,45 @@ describe('computeStats', () => {
     const stats = computeStats(trades);
     expect(stats.currentStreak).toBe(0);
   });
+
+  it('buckets today/week/month in UTC (matches MT5 server days, not device local)', () => {
+    const now = new Date();
+    const todayUtc = now.toISOString().slice(0, 10);
+    const stats = computeStats([
+      makeTrade({
+        id: 1,
+        entry_price: 100,
+        exit_price: 101,
+        size: 1,
+        contract_size: 1,
+        entry_at: `${todayUtc}T09:00:00`,
+        exit_at: `${todayUtc}T10:00:00`,
+      }),
+    ]);
+    expect(stats.todayPnl).toBe(1);
+    expect(stats.weekPnl).toBe(1); // today is always in the current UTC week
+    expect(stats.monthPnl).toBe(1);
+  });
+
+  it('keeps a previous-month trade out of the current week/month buckets', () => {
+    const now = new Date();
+    const prevMonth15th = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
+    const prevMonthStr = prevMonth15th.toISOString().slice(0, 10);
+    const stats = computeStats([
+      makeTrade({
+        id: 1,
+        entry_price: 100,
+        exit_price: 101,
+        size: 1,
+        contract_size: 1,
+        entry_at: `${prevMonthStr}T09:00:00`,
+        exit_at: `${prevMonthStr}T10:00:00`,
+      }),
+    ]);
+    expect(stats.monthPnl).toBe(0);
+    expect(stats.weekPnl).toBe(0);
+    expect(stats.allTimePnl).toBe(1);
+  });
 });
 
 describe('computeTradePnl', () => {
