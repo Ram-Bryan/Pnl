@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStats, computeTradePnl } from './computeStats';
+import { computeStats, computeTradePnl, computeUnrealizedPnl } from './computeStats';
 import type { TradeWithInstrument } from './computeStats';
 import { formatPnl } from '../lib/format';
 
@@ -114,6 +114,89 @@ describe('computeStats', () => {
     const stats = computeStats([imported, manual]);
     // manual: 1 lot × 100 contract × 0.01 cents scale = 1 unit × 0.01 = 0.01
     expect(stats.allTimePnl).toBeCloseTo(-0.5435, 6);
+  });
+
+  it('adds floating P&L for open positions marked to a current price', () => {
+    const now = new Date();
+    const todayUtc = now.toISOString().slice(0, 10);
+    const openLong = makeTrade({
+      id: 1,
+      status: 'open',
+      direction: 'long',
+      entry_price: 100,
+      exit_price: null,
+      exit_at: null,
+      size: 1,
+      contract_size: 1,
+      symbol: 'AAPL',
+      entry_at: `${todayUtc}T09:00:00`,
+    });
+    const stats = computeStats([openLong], { AAPL: 103 });
+    expect(stats.allTimePnl).toBe(3);
+    expect(stats.todayPnl).toBe(3);
+    expect(stats.weekPnl).toBe(3);
+    expect(stats.monthPnl).toBe(3);
+    // open positions don't count as wins/losses
+    expect(stats.totalTrades).toBe(0);
+    expect(stats.wins).toBe(0);
+    expect(stats.losses).toBe(0);
+  });
+
+  it('leaves open positions without a mark price out of P&L', () => {
+    const open = makeTrade({ status: 'open', exit_price: null, exit_at: null });
+    const stats = computeStats([open]);
+    expect(stats.allTimePnl).toBe(0);
+  });
+
+  it('all-time P&L combines CSV-realized P&L with floating P&L on open positions', () => {
+    const closed = makeTrade({
+      id: 1,
+      price_mode: 'cents',
+      realized_pnl: -0.5535, // -55.35 USC from the CSV profit column
+      entry_at: '2026-08-01T10:00:00',
+      exit_at: '2026-08-01T11:00:00',
+    });
+    const openGold = makeTrade({
+      id: 2,
+      price_mode: 'cents',
+      status: 'open',
+      direction: 'short',
+      symbol: 'XAUUSD',
+      entry_price: 4232.649,
+      exit_price: null,
+      exit_at: null,
+      contract_size: 100,
+      size: 0.01,
+      entry_at: '2026-08-15T10:00:00',
+    });
+    // Floating: 0.01 lot × 100 contract × 0.01 cents scale = 0.01 units per
+    // price point; short entered 4232.649, marked 4230.649 → +0.02 USD = +2.00 USC.
+    const stats = computeStats([closed, openGold], { XAUUSD: 4230.649 });
+    expect(stats.allTimePnl).toBeCloseTo(-0.5335, 6);
+    expect(stats.allTimePnl * 100).toBeCloseTo(-53.35, 2);
+  });
+});
+
+describe('computeUnrealizedPnl', () => {
+  it('values an open position at the current price (long and short)', () => {
+    const long = makeTrade({
+      status: 'open', direction: 'long', entry_price: 100,
+      exit_price: null, exit_at: null, size: 1, contract_size: 1, price_mode: 'standard',
+    });
+    expect(computeUnrealizedPnl(long, 102)).toBe(2);
+    const short = makeTrade({
+      status: 'open', direction: 'short', entry_price: 100,
+      exit_price: null, exit_at: null, size: 1, contract_size: 1, price_mode: 'standard',
+    });
+    expect(computeUnrealizedPnl(short, 98)).toBe(2);
+  });
+
+  it('returns 0 for closed trades or when no current price is available', () => {
+    const closed = makeTrade({ status: 'closed' });
+    const open = makeTrade({ status: 'open', exit_price: null, exit_at: null });
+    expect(computeUnrealizedPnl(closed, 101)).toBe(0);
+    expect(computeUnrealizedPnl(open, undefined)).toBe(0);
+    expect(computeUnrealizedPnl(open, null)).toBe(0);
   });
 });
 

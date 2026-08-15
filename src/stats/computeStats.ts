@@ -95,6 +95,31 @@ export function computeTradePnl(trade: TradeWithInstrument): number {
   );
 }
 
+// Floating P&L for an open position marked to a current price. Same account-cent
+// rounding as realized P&L. Returns 0 for closed trades and for open positions
+// with no mark price (they can't be valued). Fees are not included — the broker
+// charges them at close, so an open position's floating P&L is gross.
+export function computeUnrealizedPnl(
+  trade: TradeWithInstrument,
+  currentPrice: number | null | undefined,
+): number {
+  if (trade.status !== 'open' || currentPrice == null || !Number.isFinite(currentPrice)) return 0;
+
+  return roundPnlToAccountCent(
+    computeTradePnlInUsd({
+      direction: trade.direction,
+      entryPrice: trade.entry_price,
+      exitPrice: currentPrice,
+      lots: trade.size,
+      contractSize: trade.contract_size,
+      quoteCurrency: resolveQuoteCurrency(trade.symbol, trade.quote_currency),
+      fees: 0,
+      accountType: trade.price_mode,
+    }),
+    trade.price_mode,
+  );
+}
+
 function toDateString(iso: string): string {
   return iso.slice(0, 10);
 }
@@ -118,13 +143,17 @@ function getWeekStartUtc(d: Date): string {
   return utcYmd(monday);
 }
 
-export function computeStats(trades: TradeWithInstrument[]): StatsResult {
+export function computeStats(
+  trades: TradeWithInstrument[],
+  currentPrices: Record<string, number> = {},
+): StatsResult {
   const now = new Date();
   const todayStr = utcYmd(now);
   const weekStartStr = getWeekStartUtc(now);
   const monthStr = todayStr.slice(0, 7);
 
   const closed = trades.filter((t) => t.status === 'closed' && t.exit_price != null);
+  const open = trades.filter((t) => t.status === 'open');
 
   let todayPnl = 0, weekPnl = 0, monthPnl = 0, allTimePnl = 0;
   let grossProfit = 0, grossLoss = 0, wins = 0;
@@ -141,6 +170,22 @@ export function computeStats(trades: TradeWithInstrument[]): StatsResult {
 
     if (pnl > 0) { grossProfit += pnl; wins++; }
     else if (pnl < 0) { grossLoss += Math.abs(pnl); }
+  }
+
+  // Floating P&L on open positions marked to a current price, bucketed by entry
+  // date the same way realized P&L is. Positions without a mark price are not
+  // valued. Only the P&L totals include floating — win rate/trades stay on
+  // closed outcomes.
+  for (const t of open) {
+    const pnl = computeUnrealizedPnl(t, currentPrices[t.symbol]);
+    if (pnl === 0) continue;
+    const dateStr = toDateString(t.entry_at);
+
+    if (dateStr === todayStr) todayPnl += pnl;
+    if (dateStr >= weekStartStr) weekPnl += pnl;
+    if (dateStr.startsWith(monthStr)) monthPnl += pnl;
+
+    allTimePnl += pnl;
   }
 
   const totalTrades = closed.length;
