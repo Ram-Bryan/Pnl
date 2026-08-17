@@ -12,7 +12,6 @@
       "expo-secure-store",
       "expo-sqlite",
       "expo-font",
-      "expo-constants",
       "@react-native-community/datetimepicker"
     ],
     "ios": {
