@@ -730,6 +730,7 @@ export default function Dashboard() {
 
   const [selectedDate, setSelectedDate] = useState<string>(todayUtc);
   const [viewDate, setViewDate] = useState<string>(todayUtc);
+  const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const [goalHistoryVisible, setGoalHistoryVisible] = useState(false);
@@ -926,6 +927,9 @@ export default function Dashboard() {
     if (period === 'today') {
       return trades.filter(t => (t.exit_at ?? t.entry_at).slice(0, 10) === selectedDate);
     }
+    if (focusedDate) {
+      return trades.filter(t => (t.exit_at ?? t.entry_at).slice(0, 10) === focusedDate);
+    }
     if (period === 'week') {
       const weekSet = new Set(currentWeek);
       return trades.filter(t => weekSet.has((t.exit_at ?? t.entry_at).slice(0, 10)));
@@ -935,7 +939,7 @@ export default function Dashboard() {
       return trades.filter(t => monthSet.has((t.exit_at ?? t.entry_at).slice(0, 10)));
     }
     return trades;
-  }, [trades, period, selectedDate, currentWeek, currentMonth]);
+  }, [trades, period, selectedDate, focusedDate, currentWeek, currentMonth]);
 
   // PnL hero: dynamically computed from the currently visible trades
   const selectedPnl = useMemo(() => {
@@ -944,10 +948,14 @@ export default function Dashboard() {
 
   const periodLabel = useMemo(() => {
     if (period === 'today') return "Today's P&L";
+    if (focusedDate) {
+      const d = parseYMD(focusedDate);
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) + "'s P&L";
+    }
     if (period === 'week') return "This Week's P&L";
     if (period === 'month') return "This Month's P&L";
     return "All Time P&L";
-  }, [period]);
+  }, [period, focusedDate]);
 
   const periodStartDate = period === 'week' ? currentWeek[0] : currentMonth[0];
 
@@ -1032,7 +1040,7 @@ export default function Dashboard() {
                 { key: 'all', label: 'All Time' },
               ]}
               value={period}
-              onChange={setPeriod}
+              onChange={(p: Period) => { setPeriod(p); setFocusedDate(null); }}
             />
 
             {period === 'week' && (
@@ -1040,7 +1048,7 @@ export default function Dashboard() {
                 currentWeek={currentWeek}
                 selectedDate={selectedDate}
                 dailyPnls={dailyPnls}
-                onSelect={setSelectedDate}
+                onSelect={(d: string) => { setFocusedDate(d); setSelectedDate(d); }}
                 onPrevWeek={() => setViewDate(prev => stepWeek(prev, -1))}
                 onNextWeek={() => setViewDate(prev => stepWeek(prev, 1))}
                 displayUnit={displayUnit}
@@ -1052,7 +1060,7 @@ export default function Dashboard() {
                 currentMonth={currentMonth}
                 selectedDate={selectedDate}
                 dailyPnls={dailyPnls}
-                onSelect={setSelectedDate}
+                onSelect={(d: string) => { setFocusedDate(d); setSelectedDate(d); }}
                 onTitlePress={() => setPickerVisible(true)}
                 displayUnit={displayUnit}
               />

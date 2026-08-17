@@ -48,6 +48,7 @@ tree.txt
 # git worktrees
 .worktrees/
 
+# AI tooling
 /docs/ai
 .agent
 opencode.json
@@ -57,3 +58,10 @@ AGENTS.md
 .agents
 
 /.opencode
+
+# User data (CSV trade exports)
+*.csv
+
+# Local environment
+.env
+.env.local
