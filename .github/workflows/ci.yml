@@ -46,22 +46,9 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
       - run: pnpm install --frozen-lockfile
 
-      - name: Generate native Android project
-        run: npx expo prebuild --platform android --clean
-
-      - name: Build APK
-        run: cd android && ./gradlew assembleRelease
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: pnl.apk
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+      - name: Build Android APK
+        run: npx eas-cli build --platform android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

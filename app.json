@@ -26,6 +26,13 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "abe0f8d4-60f5-42de-8a3b-9bb33cdfbb05"
+      }
+    },
+    "owner": "barmckellens-team"
   }
 }
