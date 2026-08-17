@@ -316,6 +316,22 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     `);
   }
 
+  // Seed non-strategy reference data (idempotent).
+  await db.execAsync(`
+    INSERT OR IGNORE INTO emotions (name, color) VALUES
+      ('Calm', '#059669'), ('Confident', '#059669'), ('Focused', '#0284c7'),
+      ('Anxious', '#f59e0b'), ('Fear', '#f59e0b'), ('Greed', '#ef4444'),
+      ('FOMO', '#ef4444'), ('Revenge', '#dc2626'), ('Impatient', '#f59e0b'),
+      ('Frustrated', '#f59e0b');
+
+    INSERT OR IGNORE INTO tags (name, color) VALUES
+      ('Rushed entry', '#ef4444'), ('Chased price', '#ef4444'),
+      ('Moved stop', '#f59e0b'), ('Oversized', '#ef4444'),
+      ('No plan', '#f59e0b'), ('Entered too early', '#f59e0b'),
+      ('Exited too early', '#f59e0b'), ('Held too long', '#f59e0b'),
+      ('Skipped the setup', '#94a3b8'), ('Followed rules', '#059669');
+  `);
+
 }
 
 // ============================================================
