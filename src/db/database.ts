@@ -13,6 +13,8 @@ import {
   Strategy,
   StrategyRule,
   Instrument,
+  Note,
+  PhotoNote,
 } from './schema';
 import { TradeWithInstrument } from '../stats/computeStats';
 
@@ -211,6 +213,25 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       UNIQUE (account_id, period, period_start)
     );
   `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS notes (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      content    TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  await db.execAsync(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_one_per_day ON notes (date(created_at));`);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS photo_notes (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      img      TEXT NOT NULL,
+      id_notes INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE
+    );
+  `);
+  await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_photo_notes_note ON photo_notes(id_notes);`);
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -740,6 +761,75 @@ export async function countTradesForInstrument(db: SQLiteDatabase, id: number): 
     [id]
   );
   return row?.n ?? 0;
+}
+
+export async function getAllNotes(db: SQLiteDatabase): Promise<(Note & { photo_count: number })[]> {
+  return db.getAllAsync<Note & { photo_count: number }>(
+    `SELECT n.*,
+            COUNT(p.id) AS photo_count
+     FROM notes n
+     LEFT JOIN photo_notes p ON p.id_notes = n.id
+     GROUP BY n.id
+     ORDER BY n.created_at DESC`
+  );
+}
+
+export async function getNoteById(db: SQLiteDatabase, id: number): Promise<(Note & { photos: string[] }) | null> {
+  const note = await db.getFirstAsync<Note>('SELECT * FROM notes WHERE id = ?', [id]);
+  if (!note) return null;
+  const photos = await db.getAllAsync<PhotoNote>(
+    'SELECT * FROM photo_notes WHERE id_notes = ? ORDER BY id',
+    [id]
+  );
+  return { ...note, photos: photos.map((p) => p.img) };
+}
+
+export async function getNoteByDay(db: SQLiteDatabase, day: string): Promise<Note | null> {
+  return db.getFirstAsync<Note>(
+    `SELECT * FROM notes WHERE date(created_at) = ? LIMIT 1`,
+    [day]
+  );
+}
+
+export async function insertNote(
+  db: SQLiteDatabase,
+  input: { content: string; created_at: string; photos: string[] }
+): Promise<number> {
+  let noteId = 0;
+  await db.withTransactionAsync(async () => {
+    const result = await db.runAsync(
+      `INSERT INTO notes (content, created_at, updated_at) VALUES (?, ?, datetime('now'))`,
+      [input.content.trim(), input.created_at]
+    );
+    noteId = result.lastInsertRowId;
+    for (const img of input.photos) {
+      await db.runAsync('INSERT INTO photo_notes (img, id_notes) VALUES (?, ?)', [img, noteId]);
+    }
+  });
+  return noteId;
+}
+
+export async function updateNote(
+  db: SQLiteDatabase,
+  id: number,
+  input: { content: string; photos: string[] }
+): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `UPDATE notes
+       SET content = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      [input.content.trim(), id]
+    );
+    await db.runAsync('DELETE FROM photo_notes WHERE id_notes = ?', [id]);
+    for (const img of input.photos) {
+      await db.runAsync('INSERT INTO photo_notes (img, id_notes) VALUES (?, ?)', [img, id]);
+    }
+  });
+}
+
+export async function deleteNote(db: SQLiteDatabase, id: number): Promise<void> {
+  await db.runAsync('DELETE FROM notes WHERE id = ?', [id]);
 }
 
 // ─── Account helpers ─────────────────────────────────────────────────────────

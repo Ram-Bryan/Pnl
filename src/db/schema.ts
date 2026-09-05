@@ -150,3 +150,16 @@ export type Setting = {
   key: string;
   value: string;
 };
+
+export type Note = {
+  id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PhotoNote = {
+  id: number;
+  img: string;
+  id_notes: number;
+};

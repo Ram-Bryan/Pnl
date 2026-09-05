@@ -154,6 +154,28 @@ CREATE TABLE reviews (
 );
 
 -- ============================================================
+-- DAILY NOTES
+-- ============================================================
+
+CREATE TABLE notes (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- one note maximum per calendar day
+CREATE UNIQUE INDEX idx_notes_one_per_day ON notes (date(created_at));
+
+CREATE TABLE photo_notes (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  img      TEXT NOT NULL,
+  id_notes INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_photo_notes_note ON photo_notes(id_notes);
+
+-- ============================================================
 -- APP-LEVEL SETTINGS (key/value, single row per key)
 -- ============================================================
 

@@ -48,12 +48,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notes"
+        options={{
+          title: 'Notes',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="symbols"
         options={{
-          title: 'Symbols',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetags" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
