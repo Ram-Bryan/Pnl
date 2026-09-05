@@ -45,6 +45,10 @@ export default function RootLayout() {
             options={{ title: 'Add Trade' }}
           />
           <Stack.Screen
+            name="add-note"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="trade/[id]"
             options={{ title: 'Trade Detail' }}
           />
