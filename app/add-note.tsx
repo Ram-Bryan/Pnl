@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
+import { Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import { getNoteByDay, getNoteById, insertNote, updateNote } from '../src/db/database';
@@ -44,7 +45,7 @@ export default function AddNoteScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const db = useSQLiteContext();
-  const params = useLocalSearchParams<{ id?: string; day?: string }>();
+  const params = useLocalSearchParams<{ id?: string; day?: string; type?: 'daily' | 'normal' }>();
   const noteId = params.id ? parseInt(params.id, 10) : null;
 
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,11 @@ export default function AddNoteScreen() {
   const [content, setContent] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [day, setDay] = useState(params.day ?? formatDayKey(new Date()));
+  const [type, setType] = useState<'daily' | 'normal'>(params.type ?? 'daily');
+  const [title, setTitle] = useState('');
+  
+  // Image Zoom state
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -66,6 +72,8 @@ export default function AddNoteScreen() {
         setContent(note.content ?? '');
         setPhotos(note.photos);
         setDay(note.created_at.slice(0, 10));
+        setType(note.type);
+        setTitle(note.title ?? '');
       } catch (e) {
         Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load note.');
       } finally {
@@ -75,7 +83,13 @@ export default function AddNoteScreen() {
     return () => { mounted = false; };
   }, [db, noteId]);
 
-  const title = useMemo(() => `Notes for ${dayToDisplay(day)}`, [day]);
+  useEffect(() => {
+    // If it's a new note, set default title
+    if (!noteId && !title) {
+      if (type === 'daily') setTitle(`Notes for ${dayToDisplay(day)}`);
+      else setTitle('');
+    }
+  }, [type, day, noteId]);
 
   const addImages = async () => {
     try {
@@ -100,16 +114,20 @@ export default function AddNoteScreen() {
     setSaving(true);
     try {
       if (noteId && !Number.isNaN(noteId)) {
-        await updateNote(db, noteId, { content, photos });
+        await updateNote(db, noteId, { title: title || null, content, photos });
       } else {
-        const existing = await getNoteByDay(db, day);
-        if (existing) {
-          Alert.alert('Today already has a note', 'You can edit it instead.');
-          setSaving(false);
-          router.replace(`/add-note?id=${existing.id}`);
-          return;
+        if (type === 'daily') {
+          const existing = await getNoteByDay(db, day);
+          if (existing) {
+            Alert.alert('Today already has a daily note', 'You can edit it instead.');
+            setSaving(false);
+            router.replace(`/add-note?id=${existing.id}&type=daily`);
+            return;
+          }
         }
         await insertNote(db, {
+          type,
+          title: title || null,
           content,
           photos,
           created_at: composeLocalDateTime(day),
@@ -143,7 +161,13 @@ export default function AddNoteScreen() {
           <Pressable onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
             <Ionicons name="chevron-back" size={24} color="#ffffff" />
           </Pressable>
-          <Text className="text-white font-black text-base">{title}</Text>
+          <TextInput 
+            value={title}
+            onChangeText={setTitle}
+            placeholder={type === 'daily' ? 'Daily Note' : 'Untitled Note'}
+            placeholderTextColor="#6B7287"
+            className="flex-1 text-white font-black text-center text-base mx-2"
+          />
           <Pressable onPress={addImages} className="w-10 h-10 rounded-full items-center justify-center border border-white">
             <Ionicons name="add" size={22} color="#ffffff" />
           </Pressable>
@@ -166,7 +190,9 @@ export default function AddNoteScreen() {
             <View className="mt-4 flex-row flex-wrap">
               {photos.map((uri, index) => (
                 <View key={`${uri}-${index}`} className="mr-3 mb-3">
-                  <Image source={{ uri }} className="w-28 h-28 rounded-xl border border-[#2B2D3A]" />
+                  <Pressable onPress={() => setZoomedImage(uri)}>
+                    <Image source={{ uri }} className="w-28 h-28 rounded-xl border border-[#2B2D3A]" />
+                  </Pressable>
                   <Pressable
                     onPress={() => setPhotos((prev) => prev.filter((_, i) => i !== index))}
                     className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-[#FF4D6A] items-center justify-center"
@@ -190,6 +216,18 @@ export default function AddNoteScreen() {
           <Text className="text-white font-black tracking-wide">{saving ? 'Saving...' : 'Save Note'}</Text>
         </Pressable>
       </View>
+
+      <Modal visible={!!zoomedImage} transparent animationType="fade" onRequestClose={() => setZoomedImage(null)}>
+        <View className="flex-1 bg-black justify-center items-center">
+          <Pressable onPress={() => setZoomedImage(null)} className="absolute top-0 bottom-0 left-0 right-0 z-0" />
+          <Pressable onPress={() => setZoomedImage(null)} className="absolute top-12 right-6 z-20 w-12 h-12 bg-black/50 rounded-full items-center justify-center">
+            <Ionicons name="close" size={28} color="#fff" />
+          </Pressable>
+          {zoomedImage && (
+            <Image source={{ uri: zoomedImage }} resizeMode="contain" className="w-full h-full z-10" />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }

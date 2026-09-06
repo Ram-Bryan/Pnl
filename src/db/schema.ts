@@ -151,8 +151,12 @@ export type Setting = {
   value: string;
 };
 
+export type NoteType = 'daily' | 'normal';
+
 export type Note = {
   id: number;
+  type: NoteType;
+  title: string | null;
   content: string;
   created_at: string;
   updated_at: string;

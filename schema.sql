@@ -159,13 +159,15 @@ CREATE TABLE reviews (
 
 CREATE TABLE notes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  type       TEXT NOT NULL CHECK (type IN ('daily','normal')) DEFAULT 'normal',
+  title      TEXT,
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- one note maximum per calendar day
-CREATE UNIQUE INDEX idx_notes_one_per_day ON notes (date(created_at));
+-- one daily note maximum per calendar day
+CREATE UNIQUE INDEX idx_notes_one_per_day_daily ON notes (date(created_at)) WHERE type = 'daily';
 
 CREATE TABLE photo_notes (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,

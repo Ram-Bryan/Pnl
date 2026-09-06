@@ -1,4 +1,5 @@
 import { SQLiteDatabase } from 'expo-sqlite';
+import * as FileSystem from 'expo-file-system';
 import {
   Trade,
   Account,
@@ -217,12 +218,24 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS notes (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      type       TEXT NOT NULL CHECK (type IN ('daily','normal')) DEFAULT 'normal',
+      title      TEXT,
       content    TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
-  await db.execAsync(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_one_per_day ON notes (date(created_at));`);
+  // --- v5 notes migration: add type + title columns (existing DBs only) ---
+  // IMPORTANT: this must run BEFORE the partial index on type is created below.
+  const notesCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+  const hasTypeCol = notesCols.some((c) => c.name === 'type');
+  if (!hasTypeCol) {
+    await db.execAsync(`ALTER TABLE notes ADD COLUMN type TEXT CHECK (type IN ('daily','normal')) DEFAULT 'normal';`);
+    await db.execAsync(`ALTER TABLE notes ADD COLUMN title TEXT;`);
+    await db.runAsync(`UPDATE notes SET type = 'daily';`);
+    await db.execAsync(`DROP INDEX IF EXISTS idx_notes_one_per_day;`);
+  }
+  await db.execAsync(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_one_per_day_daily ON notes (date(created_at)) WHERE type = 'daily';`);
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS photo_notes (
@@ -300,6 +313,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`ALTER TABLE trades ADD COLUMN realized_pnl REAL;`);
   }
 
+
   const instrSql = await db.getFirstAsync<{ sql: string }>(
     `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'instruments'`
   );
@@ -351,14 +365,6 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       ('No plan', '#f59e0b'), ('Entered too early', '#f59e0b'),
       ('Exited too early', '#f59e0b'), ('Held too long', '#f59e0b'),
       ('Skipped the setup', '#94a3b8'), ('Followed rules', '#059669');
-
-    INSERT OR IGNORE INTO strategies (name, description) VALUES
-      ('Breakout', 'Enter on a confirmed breakout of a level.'),
-      ('Trend Following', 'Trade in the direction of the dominant trend.'),
-      ('Mean Reversion', 'Fade extended moves back toward the mean.'),
-      ('Scalping', 'Very short holding times, small targets.'),
-      ('News Trade', 'Trade the reaction to scheduled news.'),
-      ('Swing', 'Multi-day swing setups.');
   `);
 }
 
@@ -786,20 +792,20 @@ export async function getNoteById(db: SQLiteDatabase, id: number): Promise<(Note
 
 export async function getNoteByDay(db: SQLiteDatabase, day: string): Promise<Note | null> {
   return db.getFirstAsync<Note>(
-    `SELECT * FROM notes WHERE date(created_at) = ? LIMIT 1`,
+    `SELECT * FROM notes WHERE date(created_at) = ? AND type = 'daily' LIMIT 1`,
     [day]
   );
 }
 
 export async function insertNote(
   db: SQLiteDatabase,
-  input: { content: string; created_at: string; photos: string[] }
+  input: { type: 'daily' | 'normal'; title: string | null; content: string; created_at: string; photos: string[] }
 ): Promise<number> {
   let noteId = 0;
   await db.withTransactionAsync(async () => {
     const result = await db.runAsync(
-      `INSERT INTO notes (content, created_at, updated_at) VALUES (?, ?, datetime('now'))`,
-      [input.content.trim(), input.created_at]
+      `INSERT INTO notes (type, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+      [input.type, input.title, input.content.trim(), input.created_at]
     );
     noteId = result.lastInsertRowId;
     for (const img of input.photos) {
@@ -812,24 +818,40 @@ export async function insertNote(
 export async function updateNote(
   db: SQLiteDatabase,
   id: number,
-  input: { content: string; photos: string[] }
+  input: { title: string | null; content: string; photos: string[] }
 ): Promise<void> {
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      `UPDATE notes
-       SET content = ?, updated_at = datetime('now')
-       WHERE id = ?`,
-      [input.content.trim(), id]
-    );
-    await db.runAsync('DELETE FROM photo_notes WHERE id_notes = ?', [id]);
-    for (const img of input.photos) {
-      await db.runAsync('INSERT INTO photo_notes (img, id_notes) VALUES (?, ?)', [img, id]);
+  try {
+    const oldPhotos = await db.getAllAsync<{ img: string }>('SELECT img FROM photo_notes WHERE id_notes = ?', [id]);
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `UPDATE notes
+         SET title = ?, content = ?, updated_at = datetime('now')
+         WHERE id = ?`,
+        [input.title, input.content.trim(), id]
+      );
+      await db.runAsync('DELETE FROM photo_notes WHERE id_notes = ?', [id]);
+      for (const img of input.photos) {
+        await db.runAsync('INSERT INTO photo_notes (img, id_notes) VALUES (?, ?)', [img, id]);
+      }
+    });
+    // Delete files that are no longer used
+    for (const old of oldPhotos) {
+      if (!input.photos.includes(old.img)) {
+        await FileSystem.deleteAsync(old.img, { idempotent: true }).catch(() => {});
+      }
     }
-  });
+  } catch (e) {
+    throw e;
+  }
 }
 
 export async function deleteNote(db: SQLiteDatabase, id: number): Promise<void> {
+  const photos = await db.getAllAsync<{ img: string }>('SELECT img FROM photo_notes WHERE id_notes = ?', [id]);
   await db.runAsync('DELETE FROM notes WHERE id = ?', [id]);
+  // photo_notes will cascade delete, but we must manually delete the files
+  for (const photo of photos) {
+    await FileSystem.deleteAsync(photo.img, { idempotent: true }).catch(() => {});
+  }
 }
 
 // ─── Account helpers ─────────────────────────────────────────────────────────

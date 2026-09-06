@@ -25,10 +25,12 @@ export function useNotes() {
     }
   }, [db]);
 
+  // Re-fetch every time the notes screen comes into focus (e.g. returning from add-note).
   useFocusEffect(useCallback(() => { fetch({ silent: true }); }, [fetch]));
 
   const removeNote = useCallback(async (id: number) => {
     await deleteNote(db, id);
+    // Update in-place, exactly like useTrades.removeTrades does.
     await fetch({ silent: true });
   }, [db, fetch]);
 

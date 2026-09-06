@@ -7,6 +7,11 @@
     "scheme": "pnl",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E1A"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
